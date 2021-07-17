@@ -53,8 +53,9 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
                                               method="Nelder-Mead", options={"maxiter":sampStat[1]})
             parXforOpt, parYforOpt = paraFitResult.x[:parXN], paraFitResult.x[parXN:]
             if progressPlot == True:
-                progressPlot_paraErrorSquareSum([parXforOpt, parYforOpt], funcXY, dataXY, dataRangeXY,\
-                                                downSamp=[s, sampStat])
+                progressPlot_paraErrorSquareSum([parXforOpt, parYforOpt], funcXY,\
+                                                [dataXforOpt, dataYforOpt], dataRangeXY,\
+                                                iterRef=iterRef, downSamp=[s, sampStat])
         return parXforOpt, parYforOpt
     else:
         err2Sum = lambda par : paraErrorSquareSum([par[:parXN], par[parXN:]], funcXY,\
@@ -105,13 +106,14 @@ def paraErrorSquareSum(parXY, funcXY, dataXY, paraRange=[0.0, 1.0],\
                                      scientificStr_paraErrorSquareSum(max(opt_ts))])
         print("  head_tail square error =", scientificStr_paraErrorSquareSum(err2HeadTail))
     return err2Sum + err2HeadTail
-def progressPlot_paraErrorSquareSum(parXYFit, funcXY, dataXY, dataRangeXY, downSamp=[-1, [-1, -1]]):
+def progressPlot_paraErrorSquareSum(parXYFit, funcXY, dataXY, dataRangeXY,\
+                                    iterRef=[], downSamp=[-1, [-1, -1]]):
     def truncateColorMap(cmap, lowR, highR):
         cmapNew = matplotlib.colors.LinearSegmentedColormap.from_list(\
               "trunc({n}, {l:.2f}, {h:.2f})".format(n=cmap.name, l=lowR, h=highR),\
               cmap(np.linspace(lowR, highR, 1000)))
         return cmapNew
-    binN = 1000
+    binN = int(max(10, min(1000, downSamp[1][0])))
     fitT = np.linspace(0.0, 1.0, binN+1)[:-1]
     fitFuncX = funcXY[0](fitT, parXYFit[0])
     fitFuncY = funcXY[1](fitT, parXYFit[1])
@@ -128,7 +130,8 @@ def progressPlot_paraErrorSquareSum(parXYFit, funcXY, dataXY, dataRangeXY, downS
     hist = ax[0].hist2d(*dataXY, bins=binN, cmin=1, cmap=cmap, range=dataRangeXY)
     cb = fig.colorbar(hist[3], ax=ax[0]).mappable
     ax[0].plot(fitFuncX, fitFuncY, linewidth=3, color="red")
-    ax[0].set_title("DownSampling["+str(downSamp[0])+"] = "+str(downSamp[1]), fontsize=20, y=1.03)
+    plotTile = "DownSampling["+str(downSamp[0])+"] = "+str(downSamp[1])+", Iter = "+str(iterRef[0])
+    ax[0].set_title(plotTile, fontsize=20, y=1.03)
     ax[0].set_xlabel("x", fontsize=20)
     ax[0].set_ylabel("y", fontsize=20)
     ax[0].set_aspect("equal")
