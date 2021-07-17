@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 #####################################################################################################
 def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0],\
-                    ratioHeadTail=0.01, randSeed=None, iterRef=[],\
+                    ratioHeadTail=0.01, randSeed=None, iterRef=[], progressPlot=False,\
                     downSampling=[*[[100, 100]]*3, *[[1000, 100]]*5, [1e12, 100]]): 
     rd.seed(randSeed)
 
@@ -52,6 +52,9 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
             paraFitResult = optimize.minimize(err2Sum, [*parXforOpt, *parYforOpt],\
                                               method="Nelder-Mead", options={"maxiter":sampStat[1]})
             parXforOpt, parYforOpt = paraFitResult.x[:parXN], paraFitResult.x[parXN:]
+            if progressPlot == True:
+                progressPlot_paraErrorSquareSum([parXforOpt, parYforOpt], funcXY, dataXY, dataRangeXY,\
+                                                downSamp=[s, sampStat])
         return parXforOpt, parYforOpt
     else:
         err2Sum = lambda par : paraErrorSquareSum([par[:parXN], par[parXN:]], funcXY,\
@@ -102,6 +105,41 @@ def paraErrorSquareSum(parXY, funcXY, dataXY, paraRange=[0.0, 1.0],\
                                      scientificStr_paraErrorSquareSum(max(opt_ts))])
         print("  head_tail square error =", scientificStr_paraErrorSquareSum(err2HeadTail))
     return err2Sum + err2HeadTail
+def progressPlot_paraErrorSquareSum(parXYFit, funcXY, dataXY, dataRangeXY, downSamp=[-1, [-1, -1]]):
+    def truncateColorMap(cmap, lowR, highR):
+        cmapNew = matplotlib.colors.LinearSegmentedColormap.from_list(\
+              "trunc({n}, {l:.2f}, {h:.2f})".format(n=cmap.name, l=lowR, h=highR),\
+              cmap(np.linspace(lowR, highR, 1000)))
+        return cmapNew
+    binN = 1000
+    fitT = np.linspace(0.0, 1.0, binN+1)[:-1]
+    fitFuncX = funcXY[0](fitT, parXYFit[0])
+    fitFuncY = funcXY[1](fitT, parXYFit[1])
+
+    fig = plt.figure(figsize=(12, 9))
+    matplotlib.rc("xtick", labelsize=16)
+    matplotlib.rc("ytick", labelsize=16)
+    gs = gridspec.GridSpec(1, 1)
+    ax = []
+    for i in range (gs.nrows*gs.ncols):
+        ax.append(fig.add_subplot(gs[i])); 
+
+    cmap = truncateColorMap(plt.get_cmap("jet"), 0.0, 0.92)
+    hist = ax[0].hist2d(*dataXY, bins=binN, cmin=1, cmap=cmap, range=dataRangeXY)
+    cb = fig.colorbar(hist[3], ax=ax[0]).mappable
+    ax[0].plot(fitFuncX, fitFuncY, linewidth=3, color="red")
+    ax[0].set_title("DownSampling["+str(downSamp[0])+"] = "+str(downSamp[1]), fontsize=20, y=1.03)
+    ax[0].set_xlabel("x", fontsize=20)
+    ax[0].set_ylabel("y", fontsize=20)
+    ax[0].set_aspect("equal")
+    ax[0].set_xlim(*dataRangeXY[0])
+    ax[0].set_ylim(*dataRangeXY[1])
+
+    figName = "paraFitCurve2D_progress" + str(downSamp[0]) + ".png"
+    gs.tight_layout(fig)
+    plt.savefig(figName)
+    print("Saving the following files:")
+    print("   ", figName)
 def roundSig_paraErrorSquareSum(val, sigFig=3):
     if val == 0:
         return val;
@@ -178,10 +216,10 @@ def example_parametricFit2D():
     initX = [1.0, -15.0, 43.0, -10.0, -20.0]
     initY = [0.0, -8.0,  12.0, -4.0,   1.0]
     iterRef = [0]
-    downSampling = [*[[1000, 200]]*10]
+    downSampling = [*[[100, 100]]*10]
     parXFit, parYFit = paraLeastSquare([initX, initY], [funcX, funcY], data, rangeXY,\
                                        randSeed=0, ratioHeadTail=0.01, iterRef=iterRef,\
-                                       downSampling=downSampling)
+                                       progressPlot=True, downSampling=downSampling)
     fitT = np.linspace(0.0, 1.0, binN+1)[:-1]
     fitFuncX = funcX(fitT, parXFit)
     fitFuncY = funcY(fitT, parYFit)
