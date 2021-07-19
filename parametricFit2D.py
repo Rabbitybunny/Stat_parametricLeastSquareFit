@@ -11,7 +11,8 @@ from tqdm import tqdm
 
 #####################################################################################################
 def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0],\
-                    ratioHeadTail=0.01, randSeed=None, iterRef=[], progressPlot=False,\
+                    optMethod="Nelder-Mead", ratioHeadTail=0.01,\
+                    randSeed=None, iterRef=[], progressPlot=False,\
                     downSampling=[*[[100, 100]]*3, *[[1000, 100]]*5, [1e12, 100]]): 
     rd.seed(randSeed)
 
@@ -50,12 +51,12 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
                                                                  dataNRatioDisp=dataNRatio,\
                                                                  downSamp=[s, sampStat])    
             paraFitResult = optimize.minimize(err2Sum, [*parXforOpt, *parYforOpt],\
-                                              method="Nelder-Mead", options={"maxiter":sampStat[1]})
+                                              method=optMethod, options={"maxiter":sampStat[1]})
             parXforOpt, parYforOpt = paraFitResult.x[:parXN], paraFitResult.x[parXN:]
             if progressPlot == True:
                 progressPlot_paraErrorSquareSum([parXforOpt, parYforOpt], funcXY,\
                                                 [dataXforOpt, dataYforOpt], dataRangeXY,\
-                                                iterRef=iterRef, downSamp=[s, sampStat])
+                                                err2Sum, iterRef=iterRef, downSamp=[s, sampStat])
         return parXforOpt, parYforOpt
     else:
         err2Sum = lambda par : paraErrorSquareSum([par[:parXN], par[parXN:]], funcXY,\
@@ -106,14 +107,14 @@ def paraErrorSquareSum(parXY, funcXY, dataXY, paraRange=[0.0, 1.0],\
                                      scientificStr_paraErrorSquareSum(max(opt_ts))])
         print("  head_tail square error =", scientificStr_paraErrorSquareSum(err2HeadTail))
     return err2Sum + err2HeadTail
-def progressPlot_paraErrorSquareSum(parXYFit, funcXY, dataXY, dataRangeXY,\
+def progressPlot_paraErrorSquareSum(parXYFit, funcXY, dataXY, dataRangeXY, err2SumFunc,\
                                     iterRef=[], downSamp=[-1, [-1, -1]]):
     def truncateColorMap(cmap, lowR, highR):
         cmapNew = matplotlib.colors.LinearSegmentedColormap.from_list(\
               "trunc({n}, {l:.2f}, {h:.2f})".format(n=cmap.name, l=lowR, h=highR),\
               cmap(np.linspace(lowR, highR, 1000)))
         return cmapNew
-    binN = int(max(10, min(1000, downSamp[1][0])))
+    binN = int(max(10, min(1000, 10*math.sqrt(downSamp[1][0]))))
     fitT = np.linspace(0.0, 1.0, binN+1)[:-1]
     fitFuncX = funcXY[0](fitT, parXYFit[0])
     fitFuncY = funcXY[1](fitT, parXYFit[1])
@@ -130,7 +131,9 @@ def progressPlot_paraErrorSquareSum(parXYFit, funcXY, dataXY, dataRangeXY,\
     hist = ax[0].hist2d(*dataXY, bins=binN, cmin=1, cmap=cmap, range=dataRangeXY)
     cb = fig.colorbar(hist[3], ax=ax[0]).mappable
     ax[0].plot(fitFuncX, fitFuncY, linewidth=3, color="red")
-    plotTile = "DownSampling["+str(downSamp[0])+"] = "+str(downSamp[1])+", Iter = "+str(iterRef[0])
+    plotTile =  "DownSampling[" + str(downSamp[0]) + "] = " + str(downSamp[1]) + ", "
+    plotTile += "Iter = " + str(iterRef[0]) + ", Sq. Err. = "
+    plotTile += scientificStr_paraErrorSquareSum(err2SumFunc([*parXYFit[0], *parXYFit[1]]))
     ax[0].set_title(plotTile, fontsize=20, y=1.03)
     ax[0].set_xlabel("x", fontsize=20)
     ax[0].set_ylabel("y", fontsize=20)
@@ -149,7 +152,9 @@ def roundSig_paraErrorSquareSum(val, sigFig=3):
     return round(val, sigFig-int(np.floor(np.log10(abs(val))))-1);
 def scientificStr_paraErrorSquareSum(val, sigFig=3):
     valStr = ""
-    if abs(np.floor(np.log10(abs(val)))) < 3:
+    if val == 0:
+        valStr = "0.0"
+    elif abs(np.floor(np.log10(abs(val)))) < sigFig:
         valStr = str(roundSig_paraErrorSquareSum(val, sigFig=sigFig))
     else:
         valStr = "{:." + str(sigFig-1) + "e}"
@@ -218,11 +223,13 @@ def example_parametricFit2D():
     funcY = polyFunc
     initX = [1.0, -15.0, 43.0, -10.0, -20.0]
     initY = [0.0, -8.0,  12.0, -4.0,   1.0]
+    optMethod = "Nelder-Mead"
+    downSampling = [*[[1000, 1000]]*10]
+    
     iterRef = [0]
-    downSampling = [*[[100, 100]]*10]
     parXFit, parYFit = paraLeastSquare([initX, initY], [funcX, funcY], data, rangeXY,\
-                                       randSeed=0, ratioHeadTail=0.01, iterRef=iterRef,\
-                                       progressPlot=True, downSampling=downSampling)
+                                       optMethod=optMethod, ratioHeadTail=0.01,\
+                                       iterRef=iterRef, progressPlot=True, downSampling=downSampling)
     fitT = np.linspace(0.0, 1.0, binN+1)[:-1]
     fitFuncX = funcX(fitT, parXFit)
     fitFuncY = funcY(fitT, parYFit)
