@@ -7,12 +7,12 @@ import matplotlib.patches as mpatches
 import matplotlib.gridspec as gridspec
 from scipy import optimize
 from tqdm import tqdm
-
+import pickle
 
 #####################################################################################################
 def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0],\
                     optMethod="Nelder-Mead", ratioHeadTail=0.01,\
-                    randSeed=None, iterRef=[], progressPlot=False,\
+                    randSeed=None, iterRef=[], progressPlot=False, saveProgress=False,\
                     downSampling=[*[[100, 100]]*3, *[[1000, 100]]*5, [1e12, 100]]): 
     rd.seed(randSeed)
 
@@ -34,13 +34,27 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
         dataYList = np.array(dataYInput).tolist()
         parXforOpt = parXYinit[0].copy()
         parYforOpt = parXYinit[1].copy()
+        pickleName = "savedProgress.pickle"
+        downSamplingProgressN = -1
+        if saveProgress == True:
+            try:
+                progressDict = {}
+                with open(pickleName, "rb") as handle:
+                    progressDict = pickle.load(handle)
+                downSamplingProgressN = progressDict["downSamplingN"]
+                parXforOpt = progressDict["parX"]
+                parYforOpt = progressDict["parY"]
+            except OSError or FileNotFoundError:
+                print("Saving the following file:\n   ", pickleName)
         for s, sampStat in enumerate(downSampling):
+            if s <= downSamplingProgressN:
+                continue
             dataNRatio = 1.0
             if dataN > sampStat[0]:
                 sampledData = rd.choices(list(zip(dataXList, dataYList)), k=int(sampStat[0]))
                 dataXforOpt = [d[0] for d in sampledData]
                 dataYforOpt = [d[1] for d in sampledData]
-                dataNRatio = sampStat[0]/dataN
+                dataNRatio = dataN/sampStat[0]
             else:
                 dataXforOpt = dataXList.copy()
                 dataYforOpt = dataYList.copy()
@@ -57,6 +71,14 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
                 progressPlot_paraErrorSquareSum([parXforOpt, parYforOpt], funcXY,\
                                                 [dataXforOpt, dataYforOpt], dataRangeXY,\
                                                 err2Sum, iterRef=iterRef, downSamp=[s, sampStat])
+            if saveProgress == True:
+                progressDict = {}
+                progressDict["downSamplingN"] = s
+                progressDict["parX"] = parXforOpt
+                progressDict["parY"] = parXforOpt
+                with open(pickleName, "wb") as handle:
+                    pickle.dump(progressDict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                print("Saving the progress to:\n   ", pickleName, "\n   ", progressDict)
         return parXforOpt, parYforOpt
     else:
         err2Sum = lambda par : paraErrorSquareSum([par[:parXN], par[parXN:]], funcXY,\
@@ -99,7 +121,7 @@ def paraErrorSquareSum(parXY, funcXY, dataXY, paraRange=[0.0, 1.0],\
         if len(downSamp) != 0:
             print("downSampling["+str(downSamp[0])+"]="+str(downSamp[1]))
         print("                                                                     square error =",\
-              scientificStr_paraErrorSquareSum(err2Sum/dataNRatioDisp))
+              scientificStr_paraErrorSquareSum(err2Sum*dataNRatioDisp))
         print("  parX =", [scientificStr_paraErrorSquareSum(par) for par in parXY[0]])
         print("  parY =", [scientificStr_paraErrorSquareSum(par) for par in parXY[1]])
         print("  data number =", len(dataXY[0]))
@@ -141,11 +163,10 @@ def progressPlot_paraErrorSquareSum(parXYFit, funcXY, dataXY, dataRangeXY, err2S
     ax[0].set_xlim(*dataRangeXY[0])
     ax[0].set_ylim(*dataRangeXY[1])
 
-    figName = "paraFitCurve2D_progress" + str(downSamp[0]) + ".png"
+    figName = "progressPlot" + str(downSamp[0]) + ".png"
     gs.tight_layout(fig)
     plt.savefig(figName)
-    print("Saving the following files:")
-    print("   ", figName)
+    print("Saving the following file:\n   ", figName)
 def roundSig_paraErrorSquareSum(val, sigFig=3):
     if val == 0:
         return val;
@@ -224,12 +245,14 @@ def example_parametricFit2D():
     initX = [1.0, -15.0, 43.0, -10.0, -20.0]
     initY = [0.0, -8.0,  12.0, -4.0,   1.0]
     optMethod = "Nelder-Mead"
-    downSampling = [*[[1000, 1000]]*10]
+    downSampling = [*[[100, 10]]*10]
+    #downSampling = [*[[1000, 1000]]*10, [1e6, 1000]]
     
     iterRef = [0]
     parXFit, parYFit = paraLeastSquare([initX, initY], [funcX, funcY], data, rangeXY,\
                                        optMethod=optMethod, ratioHeadTail=0.01,\
-                                       iterRef=iterRef, progressPlot=True, downSampling=downSampling)
+                                       iterRef=iterRef, progressPlot=True, saveProgress=True,\
+                                       downSampling=downSampling)
     fitT = np.linspace(0.0, 1.0, binN+1)[:-1]
     fitFuncX = funcX(fitT, parXFit)
     fitFuncY = funcY(fitT, parYFit)
@@ -265,8 +288,7 @@ def example_parametricFit2D():
     figName = "paraFitCurve2D.png"
     gs.tight_layout(fig)
     plt.savefig(figName)
-    print("Saving the following files:")
-    print("   ", figName)
+    print("Saving the following file:\n   ", figName)
 
 
 if __name__ == "__main__":
