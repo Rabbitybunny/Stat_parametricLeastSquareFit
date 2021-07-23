@@ -16,9 +16,7 @@ import pickle
 def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0],\
                     optMethod="Nelder-Mead", bounds=None, constraints=None, ratioHeadTail=0.01,\
                     verbosity=1, progressPlot=False, saveProgress=False, randSeed=None,\
-                    downSampling=[*[[100, np.inf, None, None]]*3,\
-                                  *[[1000,  1000, None, None]]*12,\
-                                  [  np.inf, 200, None, None]]): 
+                    downSampling="DEFAULT"): 
     #drop out-of-range data
     dataXInput = []
     dataYInput = []
@@ -32,12 +30,16 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
         sys.exit(0)
 
     dataN = len(dataXInput)
-    parXN = len(parXYinit[0])
+    parXN, parYN = len(parXYinit[0]), len(parXYinit[1])
     normXYRatio = [1.0/(dataRangeXY[0][1]-dataRangeXY[0][0]),\
                    1.0/(dataRangeXY[1][1]-dataRangeXY[1][0])]
     
     if (downSampling is None) or (len(downSampling) == 0):
         downSampling = [[np.inf, np.inf, bounds, constraints]]
+    elif downSampling == "DEFAULT":
+        downSampling=[*[[100,   1000, None, None]]*3,\
+                      *[[1000,  1000, None, None]]*(parXN+parYN),\
+                        [np.inf, 200, None, None]]
     if verbosity >= 1:
         print("\n--------------------------------------------------------------Begin Parametric Fit")
     parXOpt, parYOpt = parXYinit[0].copy(), parXYinit[1].copy()
@@ -88,7 +90,8 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
             progressDict["downSamplingN"] = s
             progressDict["parX"] = parXOpt
             progressDict["parY"] = parYOpt
-            progressDict["iterErr2"] = iterErr2s
+            progressDict["iterErr2"] = [[iterErr2[-1]] for iterErr2 in iterErr2s[:-2]]
+            progressDict["iterErr2"] += iterErr2s[:-1]
             with open(pickleName, "wb") as handle:
                 pickle.dump(progressDict, handle, protocol=pickle.HIGHEST_PROTOCOL)
             pickleDSName = pickleName.replace(".pickle", "DS["+str(s)+"].pickle")
@@ -155,6 +158,7 @@ def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRan
         print("  [min_t, max_t] =", [scientificStr_paraLeastSquare(min(opt_ts)),\
                                      scientificStr_paraLeastSquare(max(opt_ts))])
         print("  head_tail normalized square error =", scientificStr_paraLeastSquare(err2HeadTail,10))
+        print("")
     return res2Ave + err2HeadTail
 def paraSquareDist(t, funcXY, dataXY, normXYRatio=[1.0, 1.0]):
     curveX, curveY = funcXY[0](t), funcXY[1](t)
@@ -195,6 +199,7 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY,\
     ax[0].set_title("Normalized Residual Square Average at Each DownSampling", fontsize=24, y=1.03)
     ax[0].set_xlabel("iterations", fontsize=20)
     ax[0].set_ylabel("residual", fontsize=20)
+    ax[0].set_xlim(left=0)
     plt.savefig(figName)
 
     fig.subplots_adjust(top=0.9, bottom=0.1, left=0.1, right=1.0)
@@ -300,9 +305,9 @@ def example_parametricFit2D():
     #bounds = ((0.9, 1.1),  noBnd, noBnd, noBnd, noBnd,\
     #          (-0.1, 0.1), noBnd, noBnd, noBnd, noBnd)
     #downSampling = [[100, 1000, bounds, None]]
-#    downSampling = [*[[100, np.inf, None, None]]*3, *[[1000, 1000, None, None]]*5,\
-#                      [np.inf, 200, None, None]]
-#                      [1e6, 1e6, None, None]]
+    downSampling = [*[[100,   1000, None, None]]*3,\
+                    *[[1000,  1000, None, None]]*14,\
+                      [np.inf, 200, None, None]]
     
     saveBool=True
     parXFit, parYFit = paraLeastSquare([initX, initY], [funcX, funcY], data, rangeXY,\
