@@ -9,7 +9,7 @@ from scipy import optimize
 from tqdm import tqdm
 import pickle
 
-#####################################################################################################
+###################@##################################################################################
 #downSampling[i] = [replacible sampling size, maxiter, bounds, constraints]
 #constraints only for optMethod = "COBYLA", "SLSQP", "trust-constr":
 #  https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
@@ -39,9 +39,9 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
     elif downSampling == "DEFAULT":
         downSampling=[*[[100,   1000, None, None]]*3,\
                       *[[1000,  1000, None, None]]*(parXN+parYN),\
-                        [np.inf, 200, None, None]]
+                        [np.inf, 200, None, None]] 
     if verbosity >= 1:
-        print("\n--------------------------------------------------------------Begin Parametric Fit")
+        print("\n---------------------------------------------------------------Begin Parametric Fit")
     parXOpt, parYOpt = parXYinit[0].copy(), parXYinit[1].copy()
     #recover saved parameters for the next optimization
     downSamplingProgressN = -1
@@ -90,8 +90,8 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
             progressDict["downSamplingN"] = s
             progressDict["parX"] = parXOpt
             progressDict["parY"] = parYOpt
-            progressDict["iterErr2"] = [[iterErr2[-1]] for iterErr2 in iterErr2s[:-2]]
-            progressDict["iterErr2"] += iterErr2s[:-1]
+            progressDict["iterErr2"] = [[iterErr2[-1]] for iterErr2 in iterErr2s[:-1]]
+            progressDict["iterErr2"] += [iterErr2s[-1]]
             with open(pickleName, "wb") as handle:
                 pickle.dump(progressDict, handle, protocol=pickle.HIGHEST_PROTOCOL)
             pickleDSName = pickleName.replace(".pickle", "DS["+str(s)+"].pickle")
@@ -100,7 +100,9 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
             if verbosity >= 1:
                 print("Saving progress:\n   ", {key: progressDict[key] for key in progressDict\
                                                 if key != "iterErr2"})
-                print("Saving files:\n   ", pickleName, "\n   ", pickleDSName)
+                print("  with files:\n   ", pickleName, "\n   ", pickleDSName)
+        if (verbosity >= 1) and ((len(downSampling) > 0)):
+            print("----------------------------------------------downSampling["+str(s)+"] Complete\n")
     if verbosity >= 1:
         print("-----------------------------------------------------------Parametric Fit Complete\n")
     return parXOpt, parYOpt
@@ -220,7 +222,7 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY,\
     figDSName = figName.replace(".png", "DS["+str(s)+"]"+".png") 
     plt.savefig(figDSName)
     if verbosity >= 1:
-        print("Saving the following file:\n   ", figName, "\n   ", figDSName)
+        print("Saving plots:\n   ", figName, "\n   ", figDSName)
 def roundSig_paraLeastSquare(val, sigFig=3):
     if val == 0:
         return val;
@@ -296,8 +298,8 @@ def example_parametricFit2D():
     #heavily depends on initial conditions, can test with downSampling=[*[[100, 1]]*1] first
     funcX = polyFunc
     funcY = polyFunc
-    initX = [1.0, -15.0, 43.0, -10.0, -20.0, 0.0, 0.0]
-    initY = [0.0, -8.0,  12.0, -4.0,   1.0, 0.0, 0.0]
+    initX = [1.0, -15.0, 43.0, -10.0, -20.0, 0.0, 0.0, 0.0, 0.0]
+    initY = [0.0, -8.0,  12.0, -4.0,   1.0,  0.0, 0.0, 0.0, 0.0]
     optMethod = "Nelder-Mead"
 
     downSampling = [*[[100, 1, None, None]]*5]
@@ -305,15 +307,15 @@ def example_parametricFit2D():
     #bounds = ((0.9, 1.1),  noBnd, noBnd, noBnd, noBnd,\
     #          (-0.1, 0.1), noBnd, noBnd, noBnd, noBnd)
     #downSampling = [[100, 1000, bounds, None]]
-    downSampling = [*[[100,   1000, None, None]]*3,\
-                    *[[1000,  1000, None, None]]*14,\
-                      [np.inf, 200, None, None]]
+    #downSampling = [*[[100,   1000, None, None]]*3,\
+    #                *[[1000,  1000, None, None]]*14,\
+    #                  [np.inf, 200, None, None]]
     
     saveBool=True
     parXFit, parYFit = paraLeastSquare([initX, initY], [funcX, funcY], data, rangeXY,\
                                        optMethod=optMethod, ratioHeadTail=0.01,\
-                                       verbosity=2, progressPlot=saveBool, saveProgress=saveBool,\
-                                       randSeed=0)#, downSampling=downSampling)
+                                       verbosity=1, progressPlot=saveBool, saveProgress=saveBool,\
+                                       randSeed=0, downSampling=downSampling)
 
 
 
@@ -358,9 +360,9 @@ def example_parametricFit2D():
 
 
 if __name__ == "__main__":
-    print("#################################################################################Begin\n")
+    print("##################################################################################Begin\n")
     example_parametricFit2D()
-    print("\n#################################################################################End\n")
+    print("\n##################################################################################End\n")
 
 
 
