@@ -98,8 +98,9 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
             with open(pickleDSName, "wb") as handle:
                 pickle.dump(progressDict, handle, protocol=pickle.HIGHEST_PROTOCOL)
             if verbosity >= 1:
-                print("Saving progress:\n   ", {key: progressDict[key] for key in progressDict\
-                                                if key != "iterErr2"})
+                print("Saving progress:\n   ", [({key: progressDict[key]} if key != "iterErr2" else\
+                                                 {key: progressDict[key][-1][-1]})\
+                                                for key in progressDict])
                 print("  with files:\n   ", pickleName, "\n   ", pickleDSName)
         if (verbosity >= 1) and ((len(downSampling) > 0)):
             print("----------------------------------------------downSampling["+str(s)+"] Complete\n")
@@ -298,8 +299,8 @@ def example_parametricFit2D():
     #heavily depends on initial conditions, can test with downSampling=[*[[100, 1]]*1] first
     funcX = polyFunc
     funcY = polyFunc
-    initX = [1.0, -15.0, 43.0, -10.0, -20.0, 0.0, 0.0, 0.0, 0.0]
-    initY = [0.0, -8.0,  12.0, -4.0,   1.0,  0.0, 0.0, 0.0, 0.0]
+    initX = [1.0, -15.0, 43.0, -10.0, -20.0, 0.0, 0.0, 0.0]
+    initY = [0.0, -8.0,  12.0, -4.0,   1.0,  0.0, 0.0, 0.0]
     optMethod = "Nelder-Mead"
 
     downSampling = [*[[100, 1, None, None]]*5]
