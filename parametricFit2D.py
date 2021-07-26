@@ -9,7 +9,10 @@ from scipy import optimize
 from tqdm import tqdm
 import pickle
 
-###################@##################################################################################
+
+
+SAVE_DIR=str(pathlib.Path().absolute())
+######################################################################################################
 #downSampling[i] = [replacible sampling size, maxiter, bounds, constraints]
 #constraints only for optMethod = "COBYLA", "SLSQP", "trust-constr":
 #  https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
@@ -45,9 +48,13 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
     parXOpt, parYOpt = parXYinit[0].copy(), parXYinit[1].copy()
     #recover saved parameters for the next optimization
     downSamplingProgressN = -1
-    pickleName = "zSavedProgress/savedProgress.pickle"
+    pickleName = SAVE_DIR+"/zSavedProgress/savedProgress.pickle"
     iterErr2s = []
     if saveProgress == True:
+        if os.path.isdir(SAVE_DIR) is False:
+            print("ERROR: paraLeastSquare: the directory for SAVE_DIR does not exist:")
+            print("   ", SAVE_DIR)
+            sys.exit(0)
         try:
             progressDict = {}
             with open(pickleName, "rb") as handle:
@@ -57,7 +64,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
             parYOpt = progressDict["parY"]
             iterErr2s = progressDict["iterErr2"]
         except OSError or FileNotFoundError:
-            pathlib.Path("zSavedProgress/").mkdir(exist_ok=True)
+            pathlib.Path(SAVE_DIR+"/zSavedProgress/").mkdir(exist_ok=True)
     #loop through downSampling
     rd.seed(randSeed)
     for s, sampStat in enumerate(downSampling):
@@ -169,8 +176,8 @@ def paraSquareDist(t, funcXY, dataXY, normXYRatio=[1.0, 1.0]):
            pow(normXYRatio[1]*(curveY - dataXY[1]), 2)
 def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY,\
                                  verbosity=1, iterErr2s=None, downSamp=[-1, [-1, -1]]):
-    pathlib.Path("zSavedProgress/").mkdir(exist_ok=True)
-    figName = "zSavedProgress/progressPlot.png"
+    pathlib.Path(SAVE_DIR+"/zSavedProgress/").mkdir(exist_ok=True)
+    figName = SAVE_DIR+"/zSavedProgress/progressPlot.png"
     def truncateColorMap(cmap, lowR, highR):
         cmapNew = matplotlib.colors.LinearSegmentedColormap.from_list(\
             "trunc({n}, {l:.2f}, {h:.2f})".format(n=cmap.name, l=lowR, h=highR),\
@@ -315,7 +322,7 @@ def example_parametricFit2D():
     saveBool=True
     parXFit, parYFit = paraLeastSquare([initX, initY], [funcX, funcY], data, rangeXY,\
                                        optMethod=optMethod, ratioHeadTail=0.01,\
-                                       verbosity=1, progressPlot=saveBool, saveProgress=saveBool,\
+                                       verbosity=2, progressPlot=saveBool, saveProgress=saveBool,\
                                        randSeed=0, downSampling=downSampling)
 
 
