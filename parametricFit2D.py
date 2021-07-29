@@ -18,7 +18,6 @@ SAVE_DIR=str(pathlib.Path().absolute())
 #downSampling[i] = [replacible sampling size, maxiter, bounds, constraints]
 #constraints only for optMethod = "COBYLA", "SLSQP", "trust-constr":
 #  https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
-ERR_EPS=1e-12   #np.finfo(float).eps
 def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0],\
                     optMethod="Nelder-Mead", bounds=None, constraints=None, ratioHeadTail=0.01,\
                     verbosity=1, progressPlot=False, saveProgress=False, randSeed=None,\
@@ -42,8 +41,8 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
     if (downSampling is None) or (len(downSampling) == 0):
         downSampling = [[np.inf, np.inf, bounds, constraints]]
     elif downSampling == "DEFAULT":
-        downSampling=[*[[100,   1000, None, None]]*3,\
-                      *[[1000,  1000, None, None]]*(parXN+parYN),\
+        downSampling=[*[[100,    1000,   None, None]]*3,\
+                      *[[1000,   1000,   None, None]]*(parXN+parYN),\
                         [np.inf, 200, None, None]] 
     if verbosity >= 1:
         print("\n---------------------------------------------------------------Begin Parametric Fit")
@@ -62,10 +61,8 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
             with open(pickleName, "rb") as handle:
                 progressDict = pickle.load(handle)
             downSamplingProgressN = progressDict["downSamplingN"]
-            #parXOpt = progressDict["parXOpt"]
-            #parYOpt = progressDict["parYOpt"]
-            parXOpt = progressDict["parX"]
-            parYOpt = progressDict["parY"]
+            parXOpt = progressDict["parXOpt"]
+            parYOpt = progressDict["parYOpt"]
             iterErr2s = progressDict["iterErr2"]
         except OSError or FileNotFoundError:
             pathlib.Path(SAVE_DIR+"/zSavedProgress/").mkdir(exist_ok=True)
@@ -98,6 +95,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
         if verbosity >= 4:
             print("Optimization Result:")
             print(paraFitResult)
+        '''
         #error evaluation
         if verbosity >= 1:
             print("\nEvaluating Standard Errors:")
@@ -120,6 +118,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
         if verbosity >= 4:
             print("Error Evaluation Result:")
             print(errResult)
+        '''
         #progress plot
         if progressPlot == True:
             progressPlot_paraLeastSquare([parXOpt, parYOpt], funcXY, [dataXforOpt, dataYforOpt],\
@@ -157,27 +156,52 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
 
 
 
-
+    '''
 #####testing 
     iterErr2Err = []
-    dataXforOpt, dataYforOpt = dataXInput[:100], dataYInput[:100]
+    dataXforOpt, dataYforOpt = dataXInput[:1000], dataYInput[:1000]
     res2 = lambda par : len(dataXforOpt)\
                        *paraSquareResidualAve([par[:parXN], par[parXN:]], funcXY,\
                                               [dataXforOpt, dataYforOpt],normXYRatio=normXYRatio,\
                                               paraRange=paraRange, ratioHeadTail=0.0,\
                                               verbosity=2, iterErr2=iterErr2Err)
     res20 = lambda par : len(dataXforOpt)\
-                        *paraSquareResidualAve([[par, *parXOpt[1:]], parYOpt], funcXY,\
+                        *paraSquareResidualAve([[*par, *parXOpt[3:]], parYOpt], funcXY,\
                                                [dataXforOpt, dataYforOpt],normXYRatio=normXYRatio,\
                                                paraRange=paraRange, ratioHeadTail=0.0,\
                                                verbosity=1, iterErr2=iterErr2Err)
+
 
  
     #print([parXOpt[0], *parXOpt[1:], *parYOpt])
 
 
-    #def funcTest(x):
-    #    return x*x
+    def funcTest(x):
+        return x[0]*math.exp(x[0]) + x[1]*x[1]*x[1]/6.0
+    pars = [2, 0.0000000008]
+    #print(numHessian(funcTest, pars))
+    #print(nd.Hessian(funcTest)(pars))
+    #H1 = numHessian(res20, parXOpt[:3])
+    #print(H1)
+    #print(linalg.inv(H1))
+    #H2 = nd.Hessian(res20)(parXOpt[:3])
+    H2 = nd.Hessian(res2)([*parXOpt, *parYOpt])
+    H2inv = linalg.inv(H2)
+    print(H2)
+    print(H2inv)
+
+    sigma2 = res2([*parXOpt, *parYOpt])
+    print(math.sqrt(sigma2))
+    parXErr, parYErr = [-1 for _ in range(parXN)], [-1 for _ in range(parYN)]
+    for i in range(parXN):
+        parXErr[i] = math.sqrt(sigma2*abs(H2inv[i][i]))
+        print(i, H2inv[i][i])
+    for i in range(parYN):
+        parYErr[i] = math.sqrt(sigma2*abs(H2inv[parXN+i][parXN+i]))
+        print(i, H2inv[parXN+i][parXN+i])
+    print(parXErr)
+    print(parYErr)
+
     #print(derivative(funcTest, 1, n=2))
     #print(optimize.approx_fprime(1, funcTest, [ERR_EPS]))
     #print([*parXOpt, *parYOpt])
@@ -188,7 +212,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
     #print(nd.Hessian(res2)([*parXOpt, *parYOpt]))
     #sys.exit(0)
 #####
-
+    '''
 
 
 
@@ -254,6 +278,65 @@ def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRan
 def paraSquareDist(t, funcXY, dataXY, normXYRatio=[1.0, 1.0]):
     return pow(normXYRatio[0]*(funcXY[0](t) - dataXY[0]), 2) +\
            pow(normXYRatio[1]*(funcXY[1](t) - dataXY[1]), 2)
+
+
+
+
+
+
+
+
+
+
+
+
+def numHessian(func, pars):
+    eps = 1e-13
+    h   = max(eps, math.sqrt(eps)*max(pars))
+    hh  = pow(h, 2)
+    hessian = [[None for i in range(len(pars))] for j in range(len(pars))]
+    funcC = func(pars)
+    for i in range(len(pars)):
+        hi = h#1e-4#max(eps, math.sqrt(eps)*pars[i])
+        for j in range(len(pars)):
+            if i == j:
+                parsP = pars.copy()
+                parsN = pars.copy()
+                parsP[i] = pars[i] + hi
+                parsN[i] = pars[i] - hi
+                funcP = func(parsP)
+                funcN = func(parsN)       
+                hessian[i][j] = (funcP - 2*funcC + funcN)/(hi*hi)
+            elif i < j:
+                hj = h#1e-4#max(eps, math.sqrt(eps)*pars[j])
+                parsPP = pars.copy()
+                parsPN = pars.copy()
+                parsNP = pars.copy()
+                parsNN = pars.copy()
+                parsPP[i] = pars[i] + hi; parsPP[j] = pars[j] + hj
+                parsPN[i] = pars[i] + hi; parsPN[j] = pars[j] - hj
+                parsNP[i] = pars[i] - hi; parsNP[j] = pars[j] + hj
+                parsNN[i] = pars[i] - hi; parsNN[j] = pars[j] - hj
+                funcPP = func(parsPP)
+                funcPN = func(parsPN)
+                funcNP = func(parsNP)
+                funcNN = func(parsNN)
+                hessian[i][j] = (funcPP - funcPN - funcNP + funcNN )/(4*hi*hj)
+            else:
+                hessian[i][j] = 1.0*hessian[j][i]
+    return np.array(hessian)
+
+
+
+
+
+
+
+
+
+
+
+
 def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY,\
                                  verbosity=1, iterErr2s=None, downSamp=[-1, [-1, -1]]):
     pathlib.Path(SAVE_DIR+"/zSavedProgress/").mkdir(exist_ok=True)
@@ -391,7 +474,7 @@ def example_parametricFit2D():
     funcY = polyFunc
     initX = [1.0, -15.0, 43.0, -10.0, -20.0, 0.0, 0.0, 0.0]
     initY = [0.0, -8.0,  12.0, -4.0,   1.0,  0.0, 0.0, 0.0]
-    optMethod = "BFGS"#"Nelder-Mead"       #"BFGS"
+    optMethod = "Nelder-Mead"       #"BFGS"
 
     downSampling = [*[[1000, 1, None, None]]*5]
     #noBnd = (None, None)
