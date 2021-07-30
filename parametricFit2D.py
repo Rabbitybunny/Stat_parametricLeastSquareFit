@@ -359,6 +359,7 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, verbosit
 
     figDSName = figName.replace("progressPlot", "progressPlotDS["+str(s)+"]") 
     plt.savefig(figDSName)
+    plt.close()
     if verbosity >= 1:
         print("Saving plots:\n   ", figName, "\n   ", figDSName)
 def roundSig_paraLeastSquare(val, sigFig=3):
@@ -439,8 +440,8 @@ def example_parametricFit2D():
     #heavily depends on initial conditions, can test with downSampling=[*[[100, 1]]*1] first
     funcX = polyFunc
     funcY = polyFunc
-    initX = [1.0, -15.0, 43.0, -10.0, -20.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    initY = [0.0, -8.0,  12.0, -4.0,   1.0,  0.0, 0.0, 0.0, 0.0, 0.0]
+    initX = [1.0, -15.0, 43.0, -10.0, -20.0, 0.0, 0.0]
+    initY = [0.0, -8.0,  12.0, -4.0,   1.0,  0.0, 0.0]
     optMethod = "Nelder-Mead"
 
 
@@ -457,7 +458,7 @@ def example_parametricFit2D():
     parXOpt, parYOpt, parXErr, parYErr = \
         paraLeastSquare([initX, initY], [funcX, funcY], data, rangeXY, optMethod=optMethod,\
                         ratioHeadTail=0.01, verbosity=3, progressPlot=saveBool,saveProgress=saveBool,\
-                        randSeed=0, downSampling=downSampling)
+                        randSeed=0)#, downSampling=downSampling)
 
     fitT = np.linspace(0.0, 1.0, binN+1)[:-1]
     fitFuncX = funcX(fitT, parXOpt)
@@ -497,6 +498,7 @@ def example_parametricFit2D():
     figName = "paraFitCurve2D.png"
     gs.tight_layout(fig)
     plt.savefig(figName)
+    plt.close()
     print("Saving the following file:\n   ", figName)
 
 
