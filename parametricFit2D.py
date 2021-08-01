@@ -15,13 +15,13 @@ import pickle
 
 SAVE_DIR=str(pathlib.Path().absolute())
 ######################################################################################################
-#downSampling[i] = [replacible sampling size, maxiter, bounds, constraints]
+#downSampling[i] = [operation type, replacible sampling size, maxiter, bounds, constraints]
 #constraints only for optMethod = "COBYLA", "SLSQP", "trust-constr":
 #  https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
 def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0],\
                     optMethod="Nelder-Mead", bounds=None, constraints=None, ratioHeadTail=0.01,\
-                    verbosity=3, progressPlot=False, saveProgress=False, randSeed=None,\
-                    downSampling="DEFAULT"): 
+                    verbosity=3, readProgress=True, progressPlot=False, saveProgress=False,\
+                    randSeed=None, downSampling="DEFAULT"): 
     #drop out-of-range data
     dataXInput = []
     dataYInput = []
@@ -64,7 +64,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
     downSamplingIterN, optIdx, bootIdx = -1, [], []
     parXBoot, parYBoot                 = [[] for _ in range(parXN)], [[] for _ in range(parYN)]
     iterErr2s                          = []
-    if saveProgress == True:
+    if readProgress == True:
         if os.path.isdir(SAVE_DIR) is False:
             print("ERROR: paraLeastSquare: the directory for SAVE_DIR does not exist:")
             print("   ", SAVE_DIR)
@@ -138,10 +138,15 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
                                       normXYRatio=normXYRatio, paraRange=paraRange,\
                                       ratioHeadTail=ratioHeadTail, verbosity=verbosity,\
                                       iterErr2=iterErr2s[s], downSamp=[s, sampStat])
-            paraFitResult = optimize.minimize(res2Ave, [*parXforOpt, *parYforOpt], method=optMethod,\
-                                              options={"maxiter":sampStat[2]},\
-                                              bounds=sampStat[3], constraints=sampStat[4])
-            parXforOpt, parYforOpt = paraFitResult.x[:parXN].tolist(),paraFitResult.x[parXN:].tolist()
+            if sampStat[2] != 0:
+                paraFitResult = optimize.minimize(res2Ave, [*parXforOpt, *parYforOpt],\
+                                                  method=optMethod,\
+                                                  options={"maxiter":sampStat[2]},\
+                                                  bounds=sampStat[3], constraints=sampStat[4])
+                parXforOpt = paraFitResult.x[:parXN].tolist()
+                parYforOpt = paraFitResult.x[parXN:].tolist()
+            else:
+                res2Ave([*parXforOpt, *parYforOpt])
 ########################################################################NOTE
             if sampStat[0] == "Opt":
                 parXOpt, parYOpt = parXforOpt.copy(), parYforOpt.copy()
@@ -156,6 +161,9 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
         if sampStat[0] in ["Boot", "Hess"]:
             if verbosity >= 1:
                 print("\nEvaluating Standard Errors:")
+                print("downSampling["+str(s)+"]=[\""+sampStat[0]+"\", "+
+                      str(int(sampStat[1]) if (sampStat[1] < np.inf) else np.inf)+", "+
+                      str(int(sampStat[2]) if (sampStat[2] < np.inf) else np.inf)+"]")
             if sampStat[0] == "Boot":
                 for xn in range(parXN):
                     parXBoot[xn].append(parXforOpt[xn])
@@ -182,6 +190,16 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
                 for ny in range(parYN):
                     parYHessErr[ny]=math.sqrt(sigma2*abs(hessInv[parXN+ny][parXN+ny]))/normXYRatio[1]
                 parXErr, parYErr = parXHessErr, parYHessErr
+        if verbosity >= 1:
+            print("Parameter results:")
+            print("  parXOpt =", str([scientificStr_paraLeastSquare(par) for par in parXOpt])\
+                                 .replace("'",""))
+            print("  parYOpt =", str([scientificStr_paraLeastSquare(par) for par in parYOpt])\
+                                 .replace("'",""))
+            print("  parXErr =", str([scientificStr_paraLeastSquare(par) for par in parXErr])\
+                                 .replace("'",""))
+            print("  parYErr =", str([scientificStr_paraLeastSquare(par) for par in parYErr])\
+                                 .replace("'",""))
         #progress plot
         if progressPlot == True:
             progressPlot_paraLeastSquare([parXforOpt, parYforOpt], funcXY, [dataXforOpt,dataYforOpt],\
@@ -215,8 +233,9 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
             if verbosity >= 1:
                 print("Saving progress:")
                 print("   ", pickleName, "\n   ", pickleDSName)
-                print("   ", [({key: str(progressDict[key])} if key != "iterErr2" else\
-                               {key: str(progressDict[key][-1][-1])}) for key in progressDict])
+                if verbosity >= 2:
+                    print("   ", [({key: str(progressDict[key])} if key != "iterErr2" else\
+                                   {key: str(progressDict[key][-1][-1])}) for key in progressDict])
         if (verbosity >= 1) and ((len(downSampling) > 0)):
             print("----------------------------------------------downSampling["+str(s)+"] Complete\n")
     if verbosity >= 1:
@@ -273,10 +292,12 @@ def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRan
         print("                                                average normalized square residual =",\
               scientificStr_paraLeastSquare(res2Ave, 10))
         print("  sample size =", len(dataXY[0]))
-        print("  parX =", [scientificStr_paraLeastSquare(par) for par in parXY[0]])
-        print("  parY =", [scientificStr_paraLeastSquare(par) for par in parXY[1]])
-        print("  [min_t, max_t] =", [scientificStr_paraLeastSquare(min(opt_ts)),\
-                                     scientificStr_paraLeastSquare(max(opt_ts))])
+        print("  parX =", str([scientificStr_paraLeastSquare(par) for par in parXY[0]])\
+                          .replace("'",""))
+        print("  parY =", str([scientificStr_paraLeastSquare(par) for par in parXY[1]])\
+                          .replace("'",""))
+        print("  [min_t, max_t] =",str([scientificStr_paraLeastSquare(min(opt_ts)),\
+                                        scientificStr_paraLeastSquare(max(opt_ts))]).replace("'", ""))
         print("  head_tail normalized square error =", scientificStr_paraLeastSquare(err2HeadTail,10))
         print("")
     return res2Ave + err2HeadTail
@@ -339,6 +360,7 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, verbosit
     if downSamp[1][0] == "Boot":
         ax[0].legend([scatter], ["bootstrap"], scatterpoints=1, loc="upper right", fontsize=16)
     plt.savefig(figName)
+    plt.cla()
 
     fig.subplots_adjust(top=0.9, bottom=0.1, left=0.1, right=1.0)
     cmap = truncateColorMap(plt.get_cmap("jet"), 0.0, 0.92)
@@ -359,7 +381,7 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, verbosit
 
     figDSName = figName.replace("progressPlot", "progressPlotDS["+str(s)+"]") 
     plt.savefig(figDSName)
-    plt.close()
+    plt.close(fig)
     if verbosity >= 1:
         print("Saving plots:\n   ", figName, "\n   ", figDSName)
 def roundSig_paraLeastSquare(val, sigFig=3):
@@ -436,37 +458,46 @@ def example_parametricFit2D():
         x, y = rd.gauss(x, noiseSig), rd.gauss(y, noiseSig)
         data[0].append(x), data[1].append(y)
 
-    #parametric fit
-    #heavily depends on initial conditions, can test with downSampling=[*[[100, 1]]*1] first
-    funcX = polyFunc
-    funcY = polyFunc
-    initX = [1.0, -15.0, 43.0, -10.0, -20.0, 0.0, 0.0]
-    initY = [0.0, -8.0,  12.0, -4.0,   1.0,  0.0, 0.0]
+
+
     optMethod = "Nelder-Mead"
+    readProg, savePlot, saveProg = True, True, True
+    #parametric fit
+    ###heavily depends on initial conditions, can test with downSampling=[*[[100, 1]]*1] first
+    funcX = polyFunc
+    funcY = polyFunc    
+    ###round1
+    #initX = [1.0, -15.0, 43.0, -10.0, -20.0, 0.0, 0.0]
+    #initY = [0.0, -8.0,  12.0, -4.0,   1.0,  0.0, 0.0]
+    #downSampling=[*[["Opt", 100,    1000, None, None]]*3,\
+    #              *[["Opt", 1000,   1000, None, None]]*14,\
+    #                ["Opt", np.inf, 200,  None, None]]
+    ###round2 using results of round1
+    ###[ 1.53e-4, -0.238, 15.6, -10.8, -5.76, -5.76e-5, -3.04e-4]
+    ###[-6.73e-4, -11.3,  23.8, -3.5,  -8.04, -0.0163,   0.0573]
+    initX = [0.8,      -8.238, 23.6, -10.8, -5.76, 20.0, -20.0]
+    initY = [-6.73e-4, -11.3,  23.8, -3.5,  -8.04, -2.0, 2.3]
+    downSampling=[*[["Opt",  1000,   1000, None, None]]*14,\
+                    ["Opt",  np.inf, 200,  None, None]]
+    ###set maxiter to 0 with (progressPlot=True, saveProgress=False) prints the plot with initXY
+    #downSampling = [*[["Opt", 1000, 0, None, None]]*1]
+    ###plotting the last entry indefinitely
+    downSampling.append(["Opt",  np.inf, 0,  None, None])
+    saveProg=False    
 
-
-
-    downSampling = [*[["Opt",  20, 100, None, None]]*3,\
-                    *[["Boot", 20, 100, None, None]]*3,\
-                    #*[["Hess", 20, 100, None, None]]*1,\
-                    *[["Opt",  20, 100, None, None]]*3,\
-                    *[["Boot", 20, 100, None, None]]*6]
-   
-
- 
-    saveBool=True
     parXOpt, parYOpt, parXErr, parYErr = \
         paraLeastSquare([initX, initY], [funcX, funcY], data, rangeXY, optMethod=optMethod,\
-                        ratioHeadTail=0.01, verbosity=3, progressPlot=saveBool,saveProgress=saveBool,\
-                        randSeed=0)#, downSampling=downSampling)
+                        ratioHeadTail=0.01, verbosity=3,\
+                        readProgress=readProg, progressPlot=savePlot, saveProgress=saveProg,\
+                        randSeed=0, downSampling=downSampling)
 
     fitT = np.linspace(0.0, 1.0, binN+1)[:-1]
     fitFuncX = funcX(fitT, parXOpt)
     fitFuncY = funcY(fitT, parYOpt)
-    print("parXOpt =", [scientificStr_paraLeastSquare(par) for par in parXOpt])
-    print("parYOpt =", [scientificStr_paraLeastSquare(par) for par in parYOpt])
-    print("parXErr =", [scientificStr_paraLeastSquare(err) for err in parXErr])
-    print("parYErr =", [scientificStr_paraLeastSquare(err) for err in parYErr])
+    print("parXOpt =", str([scientificStr_paraLeastSquare(par) for par in parXOpt]).replace("'", ""))
+    print("parYOpt =", str([scientificStr_paraLeastSquare(par) for par in parYOpt]).replace("'", ""))
+    print("parXErr =", str([scientificStr_paraLeastSquare(err) for err in parXErr]).replace("'", ""))
+    print("parYErr =", str([scientificStr_paraLeastSquare(err) for err in parYErr]).replace("'", ""))
     #plot
     fig = plt.figure(figsize=(12, 18))
     matplotlib.rc("xtick", labelsize=16)
@@ -498,7 +529,7 @@ def example_parametricFit2D():
     figName = "paraFitCurve2D.png"
     gs.tight_layout(fig)
     plt.savefig(figName)
-    plt.close()
+    plt.close(fig)
     print("Saving the following file:\n   ", figName)
 
 
