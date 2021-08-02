@@ -1,14 +1,14 @@
 # 2D Parametric Fit Using Least Square
 
-In this example, the parameters are the &mu; and &sigma; sampling from a gaussian with a sample size of 30 and, <br/>
-&ensp;&ensp;&mu; = 4.8 and &sigma; = 0.6. <br/>
-For this simple test, the profile likelihood isn't quite necessary as the maximum likelihood method can do it just fine.
+The program using the least square method to fit a 2D histogram with a 2D parametric curve, i.e. a curve (x(t), y(t)) defined by a single parameter t. The distances used for the residual is the shorted distance from each data point to the curve. The code therefore used a opimize.minimize (for finding the shortest distance) on top of anoother opimize.minimize (for finding the minimal residual sum of square); the fit requires significant processing power.
 
-The code runs on python3 with additional packages:
-
+The fit function can be used by importing parametricFit2D.py. However, an example code runs on python3 with the following:
     pip3 install scipy
     pip3 install tqdm
     python3 parametricFit2D.py
 The code outputs the following image:
 
-<img src="https://github.com/Rabbitybunny/Stat_profileLikelihood/blob/main/gausProfileNoNoise.png" width="630" height="490">
+<img src="https://github.com/Rabbitybunny/Stat_parametricLeastSquareFit/blob/main/paraFitCurve2D.png" width="600" height="900">
+
+
+<img src="https://github.com/Rabbitybunny/Stat_parametricLeastSquareFit/blob/main/progressPlot_Boot.png" width="600" height="450">
