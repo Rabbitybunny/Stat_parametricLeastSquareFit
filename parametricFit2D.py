@@ -56,7 +56,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
         print("\n---------------------------------------------------------------Begin Parametric Fit")
    
     parXOpt, parYOpt = parXYinit[0].copy(), parXYinit[1].copy()
-    parXErr, parYErr         = [-1 for _ in range(parXN)], [-1 for _ in range(parYN)]
+    parXErr, parYErr = [-1 for _ in range(parXN)], [-1 for _ in range(parYN)]
     parXBootErr, parYBootErr = [-1 for _ in range(parXN)], [-1 for _ in range(parYN)]
     parXHessErr, parYHessErr = [-1 for _ in range(parXN)], [-1 for _ in range(parYN)]
     #recover saved parameters for the next optimization
@@ -208,6 +208,14 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
         #save the progress
         if saveProgress == True:
             progressDict = {}
+            progressDict["downSampling"] = sampStat
+            progressDict["parXYinit"]     = parXYinit
+            progressDict["funcXY"]        = [str(funcXY[0]), str(funcXY[1])] 
+            progressDict["dataRangeXY"]   = dataRangeXY
+            progressDict["paraRange"]     = paraRange
+            progressDict["optMethod"]     = optMethod
+            progressDict["ratioHeadTail"] = ratioHeadTail
+            progressDict["randSeed"]      = randSeed
             progressDict["downSamplingIterN"] = s
             progressDict["optimizationN"]     = len(optIdx)
             progressDict["bootstrapN"]        = len(bootIdx)
@@ -320,19 +328,25 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, verbosit
 
     iterations, res2Aves    = [], []
     bootIters, bootRes2Aves = [], []
-    totIter = 0
+    totIter, minIter, res2Min = 0, 0, 1e12
     if downSamp[1][0] == "Opt":
         for s, iterErr2 in enumerate(iterErr2s):
             if s in optIdx:
                 totIter += iterErr2[-1][0]
                 iterations.append(totIter)
                 res2Aves.append(iterErr2[-1][1])
+                if iterErr2[-1][1] < res2Min:
+                    minIter = totIter + 0
+                    res2Min = iterErr2[-1][1] + 0.0
     elif downSamp[1][0] == "Boot":
         for s, iterErr2 in enumerate(iterErr2s):
             if (s in optIdx) or (s in bootIdx):
                 totIter += iterErr2[-1][0]
                 iterations.append(totIter)
                 res2Aves.append(iterErr2[-1][1])
+                if iterErr2[-1][1] < res2Min:
+                    minIter = totIter + 0
+                    res2Min = iterErr2[-1][1] + 0.0
                 if s in bootIdx:
                     bootIters.append(totIter)
                     bootRes2Aves.append(iterErr2[-1][1])
@@ -356,7 +370,11 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, verbosit
     ax[0].set_title("Normalized Residual Square Average at Each DownSampling", fontsize=24, y=1.03)
     ax[0].set_xlabel("iterations", fontsize=20)
     ax[0].set_ylabel("residual", fontsize=20)
-    ax[0].set_xlim(left=0)
+    xlim, ylim = ax[0].get_xlim(), ax[0].get_ylim()
+    ax[0].set_xlim(0, 1.04*xlim[1])
+    ax[0].text(minIter, ylim[0]+0.015*(ylim[1]-ylim[0]), scientificStr_paraLeastSquare(res2Min, 3),\
+               color="blue", fontsize=14, weight="bold")
+
     if downSamp[1][0] == "Boot":
         ax[0].legend([scatter], ["bootstrap"], scatterpoints=1, loc="upper right", fontsize=16)
     plt.savefig(figName)
@@ -402,6 +420,56 @@ def scientificStr_paraLeastSquare(val, sigFig=3):
         valStr = valStr.replace("e0", "")
         valStr = valStr.replace("e-0", "e-")
     return valStr
+def printSavedProgress(fullPicklePath, verbosity=2):
+    progressDict = {}
+    try:
+        with open(fullPicklePath, "rb") as handle:
+            progressDict = pickle.load(handle)
+    except OSError or FileNotFoundError:
+        print("The following file does not exist:\n ", fullPath)
+        sys.exit(0)
+
+    print("Print results from:\n ", fullPicklePath)
+    print("downSampling["+str(progressDict["downSamplingIterN"])+"]="+\
+          str(progressDict["downSampling"][:3]))
+    print("iterErr2[-1] =", progressDict["iterErr2"][-1][-1])
+    print("  parXOpt =", str([scientificStr_paraLeastSquare(par) for par in progressDict["parXOpt"]])\
+                              .replace("'",""))
+    print("  parYOpt =", str([scientificStr_paraLeastSquare(par) for par in progressDict["parYOpt"]])\
+                              .replace("'",""))
+    print("  parXErr =", str([scientificStr_paraLeastSquare(err) for err in progressDict["parXErr"]])\
+                              .replace("'",""))
+    print("  parYErr =", str([scientificStr_paraLeastSquare(err) for err in progressDict["parYErr"]])\
+                              .replace("'",""))
+    if verbosity >= 1:
+        print("")
+        print("  optimizationN =", progressDict["optimizationN"])
+        print("  bootstrapN    =", progressDict["bootstrapN"])
+        print("  parXBoot    =", str([scientificStr_paraLeastSquare(par[-1]) if (par != []) else -1\
+                                     for par in progressDict["parXBoot"]]).replace("'",""))
+        print("  parYBoot    =", str([scientificStr_paraLeastSquare(par[-1]) if (par != []) else -1\
+                                     for par in progressDict["parYBoot"]]).replace("'",""))
+        print("  parXBootErr =", str([scientificStr_paraLeastSquare(err)\
+                                     for err in progressDict["parXBootErr"]]).replace("'","")) 
+        print("  parYBootErr =", str([scientificStr_paraLeastSquare(err)\
+                                     for err in progressDict["parYBootErr"]]).replace("'","")) 
+        print("  parXHessErr =", str([scientificStr_paraLeastSquare(err)\
+                                     for err in progressDict["parXHessErr"]]).replace("'","")) 
+        print("  parYHessErr =", str([scientificStr_paraLeastSquare(err)\
+                                     for err in progressDict["parYHessErr"]]).replace("'","")) 
+    if verbosity >= 2:
+        print("")
+        print("  parXInit =", str([scientificStr_paraLeastSquare(par)\
+                                  for par in progressDict["parXYinit"][0]]).replace("'",""))
+        print("  parYInit =", str([scientificStr_paraLeastSquare(par)\
+                                  for par in progressDict["parXYinit"][1]]).replace("'",""))
+        print("  funcX =", progressDict["funcXY"][0])
+        print("  funcY =", progressDict["funcXY"][1])
+        print("  dataRangeXY   =", progressDict["dataRangeXY"])
+        print("  paraRange     =", progressDict["paraRange"])
+        print("  optMethod     =", progressDict["optMethod"])
+        print("  ratioHeadTail =", progressDict["ratioHeadTail"])
+        print("  randSeed      =", progressDict["randSeed"])
 
 
 
@@ -418,6 +486,15 @@ def scientificStr_paraLeastSquare(val, sigFig=3):
 
 
 
+
+
+
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
 def exampleFunc_parametricFit2D(t):
     x = 2*math.sin(t + math.pi/5) + 0.5*t
     y = 1.2*math.cos(t + math.pi/5) + 0.8*math.sin(t + math.pi/5)
@@ -482,8 +559,14 @@ def example_parametricFit2D():
     ###set maxiter to 0 with (progressPlot=True, saveProgress=False) prints the plot with initXY
     #downSampling = [*[["Opt", 1000, 0, None, None]]*1]
     ###plotting the last entry indefinitely
-    downSampling.append(["Opt",  np.inf, 0,  None, None])
-    saveProg=False    
+    #downSampling.append(["Opt", np.inf, 0,  None, None])
+    #saveProg=False    
+
+    
+    #downSampling=[*[["Opt", 100, 1, None, None]]*3]
+    downSampling.append(["Opt", 100, 0,  None, None])
+    saveProg=False     
+
 
     parXOpt, parYOpt, parXErr, parYErr = \
         paraLeastSquare([initX, initY], [funcX, funcY], data, rangeXY, optMethod=optMethod,\
@@ -535,6 +618,7 @@ def example_parametricFit2D():
 
 if __name__ == "__main__":
     print("##################################################################################Begin\n")
+    #printSavedProgress("zSavedProgress/savedProgressDS[0].pickle")
     example_parametricFit2D()
     print("\n##################################################################################End\n")
 
