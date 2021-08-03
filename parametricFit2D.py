@@ -15,13 +15,33 @@ import pickle
 
 SAVE_DIR=str(pathlib.Path().absolute())
 ######################################################################################################
-#downSampling[i] = [operation type, replacible sampling size, maxiter, bounds, constraints]
-#constraints only for optMethod = "COBYLA", "SLSQP", "trust-constr":
+#downSampling[i] = [operation type ("Opt": optimization, 
+#                                   "Boot": error from bootstrap, recommending 30 iterations,
+#                                   "Hess": error from inverse Hessian using numdifftools),
+#                   sampling size with replacement, 
+#                   maxiter for least square optimization,
+#                   bounds, constraints]
+#bounds/constraints only for optMethod = "COBYLA", "SLSQP", "trust-constr":
 #  https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
-def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0],\
-                    optMethod="Nelder-Mead", bounds=None, constraints=None, ratioHeadTail=0.01,\
-                    verbosity=3, readProgress=True, progressPlot=False, saveProgress=False,\
-                    randSeed=None, downSampling="DEFAULT"): 
+#
+#parXYinit     = [[initial parameter value for x-axis], [initial parameter value for y-axis]]
+#funcXY        = [parametric fit function for x-axis,   parametric fit function for y-axis]
+#dataXY        = [[data values for x-axis],             [data values for y-axis]]
+#dataRangeXY   = [data range for x-axis,                data range for y-axis]
+#   Data that fall outside the range will be removed
+#   The range goes into normalizing the residual square
+#optMethod     = optimization method for the least square (minimizing the the residual square)
+#paraRange     = range allowed for the parametric variable t, whose fit function is (x(t), y(t))
+#ratioHeadTail = adding weight to the the residual square to maintain paraRange
+#randSeed      = random seed for downSampling
+#downSampling  = (see above)
+#verbosity:    controlling the amount of output messages, up to 4
+#progressPlot: saving plots in SAVE_DIR at each downSampling iteration
+#saveProgress: saving pickle files in SAVE_DIR at each downSampling iteration
+#readProgress: reading from pickle files (if exist) to continue the optimization
+def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Mead",\
+                    paraRange=[0.0, 1.0], ratioHeadTail=0.01, randSeed=None, downSampling="DEFAULT",\
+                    verbosity=3, progressPlot=False, saveProgress=False, readProgress=True): 
     #drop out-of-range data
     dataXInput = []
     dataYInput = []
@@ -39,8 +59,8 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
         sys.exit(0)   
  
     if (downSampling is None) or (len(downSampling) == 0):
-        downSampling = [["Opt", np.inf, np.inf, bounds, constraints],\
-                        ["Hess", np.inf, np.inf, bounds, constraints]]
+        downSampling = [["Opt",  np.inf, np.inf, None, None],\
+                        ["Hess", np.inf, np.inf, None, None]]
     elif downSampling == "DEFAULT":
         downSampling=[*[["Opt",  100,    1000, None, None]]*3,\
                       *[["Opt",  1000,   1000, None, None]]*(parXN+parYN),\
@@ -251,7 +271,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, paraRange=[0.0, 1.0]
     res2AveVal = iterErr2s[-1][-1][1]
     return parXOpt, parYOpt, parXErr, parYErr, res2AveVal
 def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRange=[0.0, 1.0],\
-                          ratioHeadTail=0.0, verbosity=1, iterErr2=None, downSamp=None):
+                          ratioHeadTail=0.0, iterErr2=None, downSamp=None, verbosity=1):
     if len(dataXY[0]) != len(dataXY[1]):
         print("ERROR: paraSquareErrorAve: lengths of dataX and dataY don't match")
         sys.exit(0)
@@ -540,7 +560,7 @@ def example_parametricFit2D():
         data[0].append(x), data[1].append(y)
 
     optMethod = "Nelder-Mead"
-    readProg, savePlot, saveProg = True, True, True
+    savePlot, saveProg, readProg = True, True, True
 
     ###################################################################################################
     #parametric fit
@@ -548,20 +568,20 @@ def example_parametricFit2D():
     funcX = polyFunc
     funcY = polyFunc    
     ###round1
-    initX = [1.0, -15.0, 43.0, -10.0, -20.0, 0.0, 0.0]
-    initY = [0.0, -8.0,  12.0, -4.0,   1.0,  0.0, 0.0]
-    downSampling=[*[["Opt",  100,    1000, None, None]]*3,\
-                  *[["Opt",  1000,   1000, None, None]]*14,\
-                    ["Opt",  np.inf, 200,  None, None],\
-                  *[["Boot", 1000,   1000, None, None]]*30]
+    #initX = [1.0, -15.0, 43.0, -10.0, -20.0, 0.0, 0.0]
+    #initY = [0.0, -8.0,  12.0, -4.0,   1.0,  0.0, 0.0]
+    #downSampling=[*[["Opt",  100,    1000, None, None]]*3,\
+    #              *[["Opt",  1000,   1000, None, None]]*14,\
+    #                ["Opt",  np.inf, 200,  None, None],\
+    #              *[["Boot", 1000,   1000, None, None]]*30]
     ###round2 using results of round1
     ###[ 1.53e-4, -0.238, 15.6, -10.8, -5.76, -5.76e-5, -3.04e-4]
     ###[-6.73e-4, -11.3,  23.8, -3.5,  -8.04, -0.0163,   0.0573]
-    #initX = [0.8,      -8.238, 23.6, -10.8, -5.76, 20.0, -20.0]
-    #initY = [-6.73e-4, -11.3,  23.8, -3.5,  -8.04, -2.0, 2.3]
-    #downSampling=[*[["Opt",  1000,   1000, None, None]]*14,\
-    #                ["Opt",  np.inf, 200,  None, None],\
-    #              *[["Boot", 1000,   1000, None, None]]*30]
+    initX = [0.8,      -8.238, 23.6, -10.8, -5.76, 20.0, -20.0]
+    initY = [-6.73e-4, -11.3,  23.8, -3.5,  -8.04, -2.0, 2.3]
+    downSampling=[*[["Opt",  1000,   1000, None, None]]*14,\
+                    ["Opt",  np.inf, 200,  None, None],\
+                  *[["Boot", 1000,   1000, None, None]]*30]
     ###set maxiter to 0 with (progressPlot=True, saveProgress=False) prints the plot with initXY
     #downSampling = [*[["Opt", 1000, 0, None, None]]*1]
     ###plotting the last entry indefinitely
@@ -571,9 +591,8 @@ def example_parametricFit2D():
     
     parXOpt, parYOpt, parXErr, parYErr, res2AveVal = \
         paraLeastSquare([initX, initY], [funcX, funcY], data, rangeXY, optMethod=optMethod,\
-                        ratioHeadTail=0.01, verbosity=3,\
-                        readProgress=readProg, progressPlot=savePlot, saveProgress=saveProg,\
-                        randSeed=0, downSampling=downSampling)
+                        ratioHeadTail=0.01, randSeed=0, downSampling=downSampling,\
+                        verbosity=3, progressPlot=savePlot, saveProgress=saveProg,readProgress=readProg)
 
     fitT = np.linspace(0.0, 1.0, binN+1)[:-1]
     fitFuncX = funcX(fitT, parXOpt)
@@ -606,6 +625,7 @@ def example_parametricFit2D():
     ax[0].set_ylim(*rangeXY[1])
 
     errCurveN = 1000
+    print("Sampling the fit curve from the parameter standard errors...")
     for i in tqdm(range(errCurveN)):
         parXOptSamp = [rd.gauss(par, parXErr[nx]) for nx, par in enumerate(parXOpt)]
         parYOptSamp = [rd.gauss(par, parYErr[ny]) for ny, par in enumerate(parYOpt)]
