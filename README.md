@@ -9,7 +9,7 @@ The fit function can be used by importing parametricFit2D.py. However, an exampl
     python3 parametricFit2D.py
 The code outputs the following image:
 
-<img src="https://github.com/Rabbitybunny/Stat_parametricLeastSquareFit/blob/main/paraFitCurve2D.png" width="600" height="900">
+<img src="https://github.com/Rabbitybunny/Stat_parametricLeastSquareFit/blob/main/paraFitCurve2D_Display.png" width="600" height="900">
 
 - Top: the 20,000 data points comes from the gaussian broaden given curve (blue curve on the bottom plot). The red curve is the fitted using 6th order polynomials for both x(t) and y(t).
 - Bottom: the given curve (blue) versus 1000 fitted curves (red) sampled from the fit parameters and their standard errors.
@@ -18,7 +18,7 @@ The code outputs the following image:
 
 Other then the plot from the example code, the main code also output progress plots and save the progress in .pickle file such that the fit can be stopped and continued:
 
-<img src="https://github.com/Rabbitybunny/Stat_parametricLeastSquareFit/blob/main/progressPlot_Boot.png" width="600" height="450">
+<img src="https://github.com/Rabbitybunny/Stat_parametricLeastSquareFit/blob/main/progressPlot_Boot_Display.png" width="600" height="450">
 
 - The plot shows the "normalized averaged residual sum of square" as the optimization iteration increases. The smallest value is labeled.
 - Note: the distance residual is normalized by the given range of x and y to give their distances comparative weights

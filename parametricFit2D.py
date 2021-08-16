@@ -32,7 +32,7 @@ SAVE_DIR=str(pathlib.Path().absolute())
 #   The range goes into normalizing the residual square
 #optMethod     = optimization method for the least square (minimizing the the residual square)
 #paraRange     = range allowed for the parametric variable t, whose fit function is (x(t), y(t))
-#ratioHeadTail = adding weight to the the residual square to maintain paraRange
+#ratioHeadTail = adding weights to the the residual square to maintain paraRange
 #randSeed      = random seed for downSampling
 #downSampling  = (see above)
 #verbosity:    controlling the amount of output messages, up to 4
@@ -40,8 +40,9 @@ SAVE_DIR=str(pathlib.Path().absolute())
 #saveProgress: saving pickle files in SAVE_DIR at each downSampling iteration
 #readProgress: reading from pickle files (if exist) to continue the optimization
 def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Mead",\
-                    paraRange=[-1.0, 1.0], ratioHeadTail=0.01, randSeed=None, downSampling="DEFAULT",\
-                    verbosity=3, progressPlot=False, saveProgress=False, readProgress=True): 
+                    paraRange=[-1.0, 1.0], ratioHeadTail=[0.01, 0.01],\
+                    randSeed=None, downSampling="DEFAULT", verbosity=3,\
+                    progressPlot=False, saveProgress=False, readProgress=True): 
     #drop out-of-range data
     dataXInput = []
     dataYInput = []
@@ -62,8 +63,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
         downSampling = [["Opt",  np.inf, np.inf, None, None],\
                         ["Hess", np.inf, np.inf, None, None]]
     elif downSampling == "DEFAULT":
-        downSampling=[*[["Opt",  100,    200,  None, None]]*3,\
-                      *[["Opt",  1000,   1000, None, None]]*(parXN+parYN),\
+        downSampling=[*[["Opt",  1000,   1000, None, None]]*(parXN+parYN),\
                         ["Opt",  np.inf, 200,  None, None],\
                       *[["Boot", 1000,   1000, None, None]]*30] 
     for s, sampStat in enumerate(downSampling):
@@ -199,7 +199,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
                 res2 = lambda par : len(dataXforOpt)\
                    *paraSquareResidualAve([par[:parXN],par[parXN:]],funcXY,[dataXforOpt,dataYforOpt],\
                                           normXYRatio=normXYRatio, paraRange=paraRange,\
-                                          ratioHeadTail=0.0, verbosity=(verbosity-1),\
+                                          ratioHeadTail=[0.0, 0.0], verbosity=(verbosity-1),\
                                           iterErr2=iterErr2Err, downSamp=[s, sampStat])
                 sigma2 = res2([*parXOpt, *parYOpt])/(len(dataXforOpt) - parXN - parYN)
                 hessFunc = nd.Hessian(res2)
@@ -274,7 +274,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
     res2AveVal = iterErr2s[-1][-1][1]
     return parXOpt, parYOpt, parXErr, parYErr, res2AveVal
 def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRange=[0.0, 1.0],\
-                          ratioHeadTail=0.0, iterErr2=None, downSamp=None, verbosity=1):
+                          ratioHeadTail=[0.0, 0.0], iterErr2=None, downSamp=None, verbosity=1):
     if len(dataXY[0]) != len(dataXY[1]):
         print("ERROR: paraSquareErrorAve: lengths of dataX and dataY don't match")
         sys.exit(0)
@@ -306,14 +306,20 @@ def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRan
         opt_ts.append(opt_t.x)
 
     err2HeadTail = 0
-    if ratioHeadTail > 0:
-        countHeadTail = max(1, int(len(dataXY[0])*ratioHeadTail))
+    if ratioHeadTail[0] > 0:
         opt_ts = sorted(opt_ts)
-        for i in range(countHeadTail):
-            err2HeadTail += pow(lambdaX(opt_ts[i])   -lambdaX(paraRange[0]+ratioHeadTail), 2) 
-            err2HeadTail += pow(lambdaY(opt_ts[i])   -lambdaY(paraRange[0]+ratioHeadTail), 2)
-            err2HeadTail += pow(lambdaX(opt_ts[-i-1])-lambdaX(paraRange[1]-ratioHeadTail), 2)
-            err2HeadTail += pow(lambdaY(opt_ts[-i-1])-lambdaY(paraRange[1]-ratioHeadTail), 2)
+        for i in range(max(1, int(len(dataXY[0])*ratioHeadTail[0]))):
+            err2HeadTail += pow(lambdaX(opt_ts[i])\
+                              - lambdaX(paraRange[0] + ratioHeadTail[0]*(paraRange[1]-paraRange[0])), 2)
+            err2HeadTail += pow(lambdaY(opt_ts[i])\
+                              - lambdaY(paraRange[0] + ratioHeadTail[0]*(paraRange[1]-paraRange[0])), 2)
+    if ratioHeadTail[1] > 0:
+        opt_ts = sorted(opt_ts)
+        for i in range(max(1, int(len(dataXY[0])*ratioHeadTail[1]))):
+            err2HeadTail += pow(lambdaX(opt_ts[-i-1])\
+                              - lambdaX(paraRange[1] - ratioHeadTail[1]*(paraRange[1]-paraRange[0])), 2)
+            err2HeadTail += pow(lambdaY(opt_ts[-i-1])\
+                              - lambdaY(paraRange[1] - ratioHeadTail[1]*(paraRange[1]-paraRange[0])), 2)
 
     res2Ave      = res2Sum/len(dataXY[0])
     err2HeadTail = err2HeadTail/len(dataXY[0])
@@ -579,10 +585,9 @@ def example_parametricFit2D():
     funcX = polyFunc
     funcY = polyFunc
     ###round1
-    initX = [2.5, 1.5119, -8.22143, -2.00952, 9.99048, -0.152381, -4.41905]
-    initY = [0.5, 3.64667, -5.4273, -4., 13.2698, 0.853333, -7.84254]
-    downSampling=[*[["Opt",  100,    200,  None, None]]*3,\
-                  *[["Opt",  1000,   1000, None, None]]*14,\
+    initX = [2.5, 0.916667, -8.41667, -1.66667, 5.66667]
+    initY = [0.5, 3.56667, -3.2, -3.06667, 3.2]
+    downSampling=[*[["Opt",  1000,   1000, None, None]]*14,\
                     ["Opt",  np.inf, 200,  None, None],\
                   *[["Boot", 1000,   1000, None, None]]*30]
     ###round2 using results of round1
@@ -599,8 +604,8 @@ def example_parametricFit2D():
     #downSampling.append([downSampling[-1][0], np.inf, 0,  None, None])
     #saveProg=False
     ###testing initial
-    #downSampling = [["Opt", np.inf, 0,  None, None]]
-    #saveProg=False
+    downSampling = [["Opt", np.inf, 0, None, None]]
+    saveProg=False
     ###################################################################################################
     ###round1
 #    initX = [ 2.0, 1.0, -1.5, 0.0, 0.0]
@@ -610,11 +615,13 @@ def example_parametricFit2D():
 #                    ["Opt",  np.inf, 200,  None, None],\
 #                  *[["Boot", 1000,   1000, None, None]]*30]
 
-    paraRange = [-1.0, 1.0]
+    paraRange     = [-1.0, 1.0]
+    ratioHeadTail = [0.05, 0.01]
     parXOpt, parYOpt, parXErr, parYErr, res2AveVal = \
         paraLeastSquare([initX, initY], [funcX, funcY], data, rangeXY, optMethod=optMethod,\
-                        paraRange=paraRange, ratioHeadTail=0.01, randSeed=0,downSampling=downSampling,\
-                        verbosity=3, progressPlot=savePlot,saveProgress=saveProg,readProgress=readProg)
+                        paraRange=paraRange, ratioHeadTail=ratioHeadTail,\
+                        randSeed=0, downSampling=downSampling, verbosity=3,\
+                        progressPlot=savePlot, saveProgress=saveProg, readProgress=readProg)
 
     fitT = np.linspace(*paraRange, binN+1)[:-1]
     fitFuncX = funcX(fitT, parXOpt)
