@@ -63,7 +63,8 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
         downSampling = [["Opt",  np.inf, np.inf, None, None],\
                         ["Hess", np.inf, np.inf, None, None]]
     elif downSampling == "DEFAULT":
-        downSampling=[*[["Opt",  1000,   1000, None, None]]*(parXN+parYN),\
+        downSampling=[ [["Opt", np.inf, 0, None, None]],\
+                      *[["Opt",  1000,   1000, None, None]]*(parXN+parYN),\
                         ["Opt",  np.inf, 200,  None, None],\
                       *[["Boot", 1000,   1000, None, None]]*30] 
     for s, sampStat in enumerate(downSampling):
@@ -165,10 +166,8 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
                                                   bounds=sampStat[3], constraints=sampStat[4])
                 parXforOpt = paraFitResult.x[:parXN].tolist()
                 parYforOpt = paraFitResult.x[parXN:].tolist()
-            elif s != 0:
-                iterErr2s[-1].append([0, iterErr2s[s-1][-1][1], iterErr2s[s-1][-1][2]])
             else:
-                iterErr2s[-1].append([0, -1, -1])
+                res2Ave([*parXforOpt, *parYforOpt])
 ########################################################################NOTE
             if sampStat[0] == "Opt":
                 parXOpt, parYOpt = parXforOpt.copy(), parYforOpt.copy()
@@ -227,7 +226,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
             progressPlot_paraLeastSquare([parXforOpt, parYforOpt], funcXY, [dataXforOpt,dataYforOpt],\
                                          dataRangeXY, paraRange=paraRange, verbosity=verbosity,\
                                          optIdx=optIdx, bootIdx=bootIdx, iterErr2s=iterErr2s,\
-                                         downSamp=[s, sampStat])
+                                         downSamp=[s, sampStat], saveProgress=saveProgress)
         #save the progress
         if saveProgress == True:
             progressDict = {}
@@ -343,13 +342,17 @@ def paraSquareDist(t, funcXY, dataXY, normXYRatio=[1.0, 1.0]):
     return pow(normXYRatio[0]*(funcXY[0](t) - dataXY[0]), 2) +\
            pow(normXYRatio[1]*(funcXY[1](t) - dataXY[1]), 2)
 def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, paraRange=[-1.0, 1.0],\
-                                 verbosity=1, optIdx=None, bootIdx=None, iterErr2s=None,downSamp=None):
+                                 verbosity=1, optIdx=None, bootIdx=None, iterErr2s=None,\
+                                 downSamp=None, saveProgress=False):
     if downSamp[1][0] == "Hess":
         return
     pathlib.Path(SAVE_DIR+"/zSavedProgress/").mkdir(exist_ok=True)
     figName = SAVE_DIR+"/zSavedProgress/progressPlot_Opt.png"
-    if downSamp[1][0] == "Boot":
+    if (len(iterErr2s) == 1) and (downSamp[1][2] == 0):
+        figName = figName.replace("Opt", "Init")
+    elif downSamp[1][0] == "Boot":
         figName = figName.replace("Opt", "Boot")
+    
     def truncateColorMap(cmap, lowR, highR):
         cmapNew = matplotlib.colors.LinearSegmentedColormap.from_list(\
             "trunc({n}, {l:.2f}, {h:.2f})".format(n=cmap.name, l=lowR, h=highR),\
@@ -427,7 +430,7 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, paraRang
     ax[0].set_xlim(*dataRangeXY[0])
     ax[0].set_ylim(*dataRangeXY[1])
     
-    if downSamp[1][2] != 0:
+    if saveProgress == True:
         figDSName = figName.replace("progressPlot", "progressPlotDS["+str(s)+"]") 
     else:
         figDSName = figName.replace("progressPlot", "progressPlotDS[]")
@@ -587,7 +590,8 @@ def example_parametricFit2D():
     ###round1
     initX = [2.5, 0.916667, -8.41667, -1.66667, 5.66667]
     initY = [0.5, 3.56667, -3.2, -3.06667, 3.2]
-    downSampling=[*[["Opt",  1000,   1000, None, None]]*14,\
+    downSampling=[  ["Opt",  np.inf, 0, None, None],\
+                  *[["Opt",  1000,   1000, None, None]]*14,\
                     ["Opt",  np.inf, 200,  None, None],\
                   *[["Boot", 1000,   1000, None, None]]*30]
     ###round2 using results of round1
@@ -595,7 +599,8 @@ def example_parametricFit2D():
     ###[-6.73e-4, -11.3,  23.8, -3.5,  -8.04, -0.0163,   0.0573]
     #initX = [0.8,      -8.238, 23.6, -10.8, -5.76, 20.0, -20.0]
     #initY = [-6.73e-4, -11.3,  23.8, -3.5,  -8.04, -2.0, 2.3]
-    #downSampling=[*[["Opt",  1000,   1000, None, None]]*14,\
+    #downSampling=[  ["Opt",  np.inf, 0, None, None],\
+    #              *[["Opt",  1000,   1000, None, None]]*14,\
     #                ["Opt",  np.inf, 200,  None, None],\
     #              *[["Boot", 1000,   1000, None, None]]*30]
     ###set maxiter to 0 with (progressPlot=True, saveProgress=False) prints the plot with initXY
@@ -604,8 +609,8 @@ def example_parametricFit2D():
     #downSampling.append([downSampling[-1][0], np.inf, 0,  None, None])
     #saveProg=False
     ###testing initial
-    downSampling = [["Opt", np.inf, 0, None, None]]
-    saveProg=False
+    #downSampling = [["Opt", np.inf, 0, None, None]]
+    #saveProg=False
     ###################################################################################################
     ###round1
 #    initX = [ 2.0, 1.0, -1.5, 0.0, 0.0]
