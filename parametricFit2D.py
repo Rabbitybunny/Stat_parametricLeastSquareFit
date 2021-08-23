@@ -40,7 +40,7 @@ SAVE_DIR=str(pathlib.Path().absolute())
 #saveProgress: saving pickle files in SAVE_DIR at each downSampling iteration
 #readProgress: reading from pickle files (if exist) to continue the optimization
 def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Mead",\
-                    paraRange=[-1.0, 1.0], ratioHeadTail=[0.01, 0.01],\
+                    paraRange=[-1.0, -0.5, 0.0, 0.5, 1.0], ratioHeadTail=[0.01, 0.01],\
                     randSeed=None, downSampling="DEFAULT", verbosity=3,\
                     progressPlot=False, saveProgress=False, readProgress=True): 
     #drop out-of-range data
@@ -74,7 +74,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
             print("    downSampling["+str(s)+"][0] = \""+str(sampStat[0])+"\"")
             sys.exit(0)
     if verbosity >= 1:
-        print("\n---------------------------------------------------------------Begin Parametric Fit")
+        print("\n----------------------------------------------------------------Begin Parametric Fit")
    
     parXOpt, parYOpt = parXYinit[0].copy(), parXYinit[1].copy()
     parXErr, parYErr = [-1 for _ in range(parXN)], [-1 for _ in range(parYN)]
@@ -92,8 +92,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
             sys.exit(0)
         try:
             progressDict = {}
-            with open(pickleName, "rb") as handle:
-                progressDict = pickle.load(handle)
+            with open(pickleName, "rb") as handle: progressDict = pickle.load(handle)
             downSamplingIterN = progressDict["downSamplingIterN"] + 0
             optIdx            = progressDict["optIdx"].copy()
             bootIdx           = progressDict["bootIdx"].copy()
@@ -130,12 +129,9 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
     #loop through downSampling
     rd.seed(randSeed)
     for s, sampStat in enumerate(downSampling):
-        if s <= downSamplingIterN:
-            continue
-        if sampStat[0] == "Opt":
-            optIdx.append(s)
-        elif sampStat[0] == "Boot":
-            bootIdx.append(s)
+        if s <= downSamplingIterN: continue
+        if   sampStat[0] == "Opt":  optIdx.append(s)
+        elif sampStat[0] == "Boot": bootIdx.append(s)
         parXforOpt, parYforOpt = parXOpt.copy(), parYOpt.copy()
         #down-sample data to speed up the inital progress
         dataXforOpt, dataYforOpt = dataXInput.copy(), dataYInput.copy()
@@ -166,17 +162,14 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
                                                   bounds=sampStat[3], constraints=sampStat[4])
                 parXforOpt = paraFitResult.x[:parXN].tolist()
                 parYforOpt = paraFitResult.x[parXN:].tolist()
-            else:
+            else: 
                 res2Ave([*parXforOpt, *parYforOpt])
 ########################################################################NOTE
-            if sampStat[0] == "Opt":
-                parXOpt, parYOpt = parXforOpt.copy(), parYforOpt.copy()
+            if sampStat[0] == "Opt": parXOpt, parYOpt = parXforOpt.copy(), parYforOpt.copy()
 ############################################################################
             if verbosity >= 4:
-                if sampStat[0] == "Opt":
-                    print("Optimization Result:")
-                elif sampStat[0] == "Boot":
-                    print("Bootstrap Result:")
+                if   sampStat[0] == "Opt":  print("Optimization Result:")
+                elif sampStat[0] == "Boot": print("Bootstrap Result:")
                 print(paraFitResult)
         #error evaluation
         if (sampStat[0] in ["Boot", "Hess"]) and (s != 0) and (sampStat[2] != 0):
@@ -267,63 +260,62 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
                     print("   ", [({key: str(progressDict[key])} if key != "iterErr2" else\
                                    {key: str(progressDict[key][-1][-1])}) for key in progressDict])
         if (verbosity >= 1) and ((len(downSampling) > 0)):
-            print("----------------------------------------------downSampling["+str(s)+"] Complete\n")
+            print("-----------------------------------------------downSampling["+str(s)+"] Complete\n")
     if verbosity >= 1:
-        print("-----------------------------------------------------------Parametric Fit Complete\n")
+        print("-------------------------------------------------------------Parametric Fit Complete\n")
     res2AveVal = iterErr2s[-1][-1][1]
     return parXOpt, parYOpt, parXErr, parYErr, res2AveVal
-def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRange=[0.0, 1.0],\
+def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRange=[-1.0, 1.0],\
                           ratioHeadTail=[0.0, 0.0], iterErr2=None, downSamp=None, verbosity=1):
     if len(dataXY[0]) != len(dataXY[1]):
         print("ERROR: paraSquareErrorAve: lengths of dataX and dataY don't match")
         sys.exit(0)
     outputStr = ""
     if iterErr2 is not None:
-        if len(iterErr2) == 0:
-            iterErr2.append([0, None, None])
-        else:
-            iterErr2.append([iterErr2[-1][0]+1, None])
+        if len(iterErr2) == 0: iterErr2.append([0, None, None])
+        else: iterErr2.append([iterErr2[-1][0]+1, None])
         outputStr += "iter "+str(iterErr2[-1][0])
     if downSamp is not None:
-        if outputStr != "":
-            outputStr += ", "
+        if outputStr != "": outputStr += ", "
         outputStr += "downSampling["+str(downSamp[0])+"]="
         outputStr += "[\"" + downSamp[1][0] + "\", "
         outputStr += str(int(downSamp[1][1]) if (downSamp[1][1] < np.inf) else np.inf) + ", "
         outputStr += str(int(downSamp[1][2]) if (downSamp[1][2] < np.inf) else np.inf) + "]"
-    if verbosity >= 2:    
-        print(outputStr)
+    if verbosity >= 2: print(outputStr)
 
     lambdaX = lambda t : funcXY[0](t, parXY[0])
     lambdaY = lambda t : funcXY[1](t, parXY[1])
     
-    (res2Sum, opt_ts) = (0, [])
+    (res2Sum, opt_ts, fullStat) = (0, [], [])
     for x, y in tqdm(np.array(dataXY).T, disable=(verbosity < 2)):
         distSquare = lambda t : paraSquareDist(t, [lambdaX, lambdaY], [x, y], normXYRatio=normXYRatio)
-        opt_t = optimize.minimize_scalar(distSquare, method="bounded", bounds=tuple(paraRange))
-        res2Sum += distSquare(opt_t.x)
-        opt_ts.append(opt_t.x)
-
+        opt_t = paraRange[0]
+        for paraIdx in range(len(paraRange)-1):
+            bounds = (paraRange[paraIdx], paraRange[paraIdx+1])
+            optResult = optimize.minimize_scalar(distSquare, method="bounded", bounds=bounds)
+            if distSquare(optResult.x) < distSquare(opt_t): opt_t = optResult.x
+        res2Sum += distSquare(opt_t)
+        opt_ts.append(opt_t)
+        fullStat.append([x, y, opt_t, lambdaX(opt_t), lambdaY(opt_t), distSquare(opt_t)])
+    
+    opt_ts = sorted(opt_ts)
     err2HeadTail = 0
     if ratioHeadTail[0] > 0:
-        opt_ts = sorted(opt_ts)
         for i in range(max(1, int(len(dataXY[0])*ratioHeadTail[0]))):
             err2HeadTail += pow(lambdaX(opt_ts[i])\
-                              - lambdaX(paraRange[0] + ratioHeadTail[0]*(paraRange[1]-paraRange[0])), 2)
+                              - lambdaX(paraRange[0] +ratioHeadTail[0]*(paraRange[-1]-paraRange[0])),2)
             err2HeadTail += pow(lambdaY(opt_ts[i])\
-                              - lambdaY(paraRange[0] + ratioHeadTail[0]*(paraRange[1]-paraRange[0])), 2)
+                              - lambdaY(paraRange[0] +ratioHeadTail[0]*(paraRange[-1]-paraRange[0])),2)
     if ratioHeadTail[1] > 0:
-        opt_ts = sorted(opt_ts)
         for i in range(max(1, int(len(dataXY[0])*ratioHeadTail[1]))):
             err2HeadTail += pow(lambdaX(opt_ts[-i-1])\
-                              - lambdaX(paraRange[1] - ratioHeadTail[1]*(paraRange[1]-paraRange[0])), 2)
+                              - lambdaX(paraRange[-1]-ratioHeadTail[1]*(paraRange[-1]-paraRange[0])),2)
             err2HeadTail += pow(lambdaY(opt_ts[-i-1])\
-                              - lambdaY(paraRange[1] - ratioHeadTail[1]*(paraRange[1]-paraRange[0])), 2)
+                              - lambdaY(paraRange[-1]-ratioHeadTail[1]*(paraRange[-1]-paraRange[0])),2)
 
     res2Ave      = res2Sum/len(dataXY[0])
     err2HeadTail = err2HeadTail/len(dataXY[0])
-    if iterErr2 is not None:
-        iterErr2[-1] = [iterErr2[-1][0], res2Ave, err2HeadTail]
+    if iterErr2 is not None: iterErr2[-1] = [iterErr2[-1][0], res2Ave, err2HeadTail]
 
     if verbosity >= 3:
         print("                                                average normalized square residual =",\
@@ -348,10 +340,8 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, paraRang
         return
     pathlib.Path(SAVE_DIR+"/zSavedProgress/").mkdir(exist_ok=True)
     figName = SAVE_DIR+"/zSavedProgress/progressPlot_Opt.png"
-    if (len(iterErr2s) == 1) and (downSamp[1][2] == 0):
-        figName = figName.replace("Opt", "Init")
-    elif downSamp[1][0] == "Boot":
-        figName = figName.replace("Opt", "Boot")
+    if (len(iterErr2s) == 1) and (downSamp[1][2] == 0): figName = figName.replace("Opt", "Init")
+    elif downSamp[1][0] == "Boot": figName = figName.replace("Opt", "Boot")
     
     def truncateColorMap(cmap, lowR, highR):
         cmapNew = matplotlib.colors.LinearSegmentedColormap.from_list(\
@@ -384,8 +374,8 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, paraRang
                     bootIters.append(totIter)
                     bootRes2Aves.append(iterErr2[-1][1])
 
-    binN = int(max(10, min(1000, 10*math.sqrt(downSamp[1][1]))))
-    fitT = np.linspace(*paraRange, binN+1)[:-1]
+    binN = int(max(10, min(500, 3*math.sqrt(downSamp[1][1]))))
+    fitT = np.linspace(paraRange[0], paraRange[-1], binN+1)[:-1]
     fitFuncX = funcXY[0](fitT, parXYFit[0])
     fitFuncY = funcXY[1](fitT, parXYFit[1])
 
@@ -394,8 +384,7 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, paraRang
     matplotlib.rc("ytick", labelsize=16)
     gs = gridspec.GridSpec(1, 1)
     ax = []
-    for i in range (gs.nrows*gs.ncols):
-        ax.append(fig.add_subplot(gs[i])); 
+    for i in range (gs.nrows*gs.ncols): ax.append(fig.add_subplot(gs[i])); 
 
     fig.subplots_adjust(top=0.9, bottom=0.1, left=0.12, right=0.98)
     ax[0].plot(iterations, res2Aves, color="blue", linewidth=2, marker="o", markersize=5)
@@ -429,18 +418,14 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, paraRang
     ax[0].set_ylabel("y", fontsize=20)
     ax[0].set_xlim(*dataRangeXY[0])
     ax[0].set_ylim(*dataRangeXY[1])
+    cb.set_clim(0.0, max(5.0, cb.get_clim()[1]))
     
-    if saveProgress == True:
-        figDSName = figName.replace("progressPlot", "progressPlotDS["+str(s)+"]") 
-    else:
-        figDSName = figName.replace("progressPlot", "progressPlotDS[]")
+    figDSName = figName.replace("progressPlot", "progressPlotDS["+str(s)+"]")
     plt.savefig(figDSName)
     plt.close(fig)
-    if verbosity >= 1:
-        print("Saving plots:\n   ", figName, "\n   ", figDSName)
+    if verbosity >= 1: print("Saving plots:\n   ", figName, "\n   ", figDSName)
 def roundSig_paraLeastSquare(val, sigFig=3):
-    if val == 0:
-        return val;
+    if val == 0: return val;
     return round(val, sigFig-int(np.floor(np.log10(abs(val))))-1);
 def scientificStr_paraLeastSquare(val, sigFig=3):
     valStr = ""
@@ -459,8 +444,7 @@ def scientificStr_paraLeastSquare(val, sigFig=3):
 def printSavedProgress(fullPicklePath, verbosity=2):
     progressDict = {}
     try:
-        with open(fullPicklePath, "rb") as handle:
-            progressDict = pickle.load(handle)
+        with open(fullPicklePath, "rb") as handle: progressDict = pickle.load(handle)
     except OSError or FileNotFoundError:
         print("The following file does not exist:\n ", fullPath)
         sys.exit(0)
@@ -565,7 +549,7 @@ def example_parametricFit2D():
     #sample setup
     binN    = 1000
     sampleN = 20000
-    rd.seed(0)
+    rd.seed(1)
     noiseSig = 0.2
     rangeXY = [[-1.5, 3.5], [-2.2, 2.2]]
 
@@ -587,32 +571,20 @@ def example_parametricFit2D():
     ###may need to get a systems of linear equation solver for both x&y to get a few points correct
     funcX = polyFunc
     funcY = polyFunc
-    ###round1
-    initX = [2.5, 0.916667, -8.41667, -1.66667, 5.66667]
-    initY = [0.5, 3.56667, -3.2, -3.06667, 3.2]
+    
+    ###################################################################################################
+    initX = [2.2, 2.54659, -4.32652, -3.34659, 2.02652]
+    initY = [-0.3, 3.34015, 0.736364, -2.89015, 0.113636]
     downSampling=[  ["Opt",  np.inf, 0, None, None],\
-                  *[["Opt",  1000,   1000, None, None]]*14,\
+                  *[["Opt",  1000,   1000, None, None]]*5,\
                     ["Opt",  np.inf, 200,  None, None],\
                   *[["Boot", 1000,   1000, None, None]]*30]
-    ###round2 using results of round1
-    ###[ 1.53e-4, -0.238, 15.6, -10.8, -5.76, -5.76e-5, -3.04e-4]
-    ###[-6.73e-4, -11.3,  23.8, -3.5,  -8.04, -0.0163,   0.0573]
-    #initX = [0.8,      -8.238, 23.6, -10.8, -5.76, 20.0, -20.0]
-    #initY = [-6.73e-4, -11.3,  23.8, -3.5,  -8.04, -2.0, 2.3]
-    #downSampling=[  ["Opt",  np.inf, 0, None, None],\
-    #              *[["Opt",  1000,   1000, None, None]]*14,\
-    #                ["Opt",  np.inf, 200,  None, None],\
-    #              *[["Boot", 1000,   1000, None, None]]*30]
-    ###set maxiter to 0 with (progressPlot=True, saveProgress=False) prints the plot with initXY
-    #downSampling = [*[["Opt", 1000, 0, None, None]]*1]
-    ###plotting the last entry indefinitely
-    #downSampling.append([downSampling[-1][0], np.inf, 0,  None, None])
-    #saveProg=False
     ###testing initial
-    #downSampling = [["Opt", np.inf, 0, None, None]]
+    #downSampling = [["Opt", np.inf, 0, None, None],\
+    #                ["Opt", 1000, 100, None, None],\
+    #                ["Opt", np.inf, 0, None, None] ]
     #saveProg=False
     ###################################################################################################
-    ###round1
 #    initX = [ 2.0, 1.0, -1.5, 0.0, 0.0]
 #    initY = [-0.5, 1.2,  0.5, 0.0, 0.0]
 #    downSampling=[*[["Opt",  100,    1000, None, None]]*3,\
@@ -620,15 +592,15 @@ def example_parametricFit2D():
 #                    ["Opt",  np.inf, 200,  None, None],\
 #                  *[["Boot", 1000,   1000, None, None]]*30]
 
-    paraRange     = [-1.0, 1.0]
-    ratioHeadTail = [0.05, 0.01]
+    paraRange     = [-1.0, -0.5, 0.0, 0.5, 1.0]
+    ratioHeadTail = [0.0, 0.0]
     parXOpt, parYOpt, parXErr, parYErr, res2AveVal = \
         paraLeastSquare([initX, initY], [funcX, funcY], data, rangeXY, optMethod=optMethod,\
                         paraRange=paraRange, ratioHeadTail=ratioHeadTail,\
                         randSeed=0, downSampling=downSampling, verbosity=3,\
                         progressPlot=savePlot, saveProgress=saveProg, readProgress=readProg)
 
-    fitT = np.linspace(*paraRange, binN+1)[:-1]
+    fitT = np.linspace(paraRange[0], paraRange[-1], binN+1)[:-1]
     fitFuncX = funcX(fitT, parXOpt)
     fitFuncY = funcY(fitT, parYOpt)
     print("Results from paraLeastSquare():")
@@ -682,10 +654,10 @@ def example_parametricFit2D():
 
 
 if __name__ == "__main__":
-    print("##################################################################################Begin\n")
+    print("###################################################################################Begin\n")
     #printSavedProgress("zSavedProgress/savedProgressDS[0].pickle")
     example_parametricFit2D()
-    print("\n##################################################################################End\n")
+    print("\n###################################################################################End\n")
 
 
 
