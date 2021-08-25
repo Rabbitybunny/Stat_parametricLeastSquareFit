@@ -1,4 +1,4 @@
-import os, sys, pathlib, math
+import os, sys, pathlib, time, math
 import numpy as np
 import random as rd
 import numdifftools as nd
@@ -206,20 +206,20 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
                 parXErr, parYErr = parXHessErr, parYHessErr
         if verbosity >= 1:
             print("Parameter results:")
-            print("  parXOpt =", str([scientificStr_paraLeastSquare(par) for par in parXOpt])\
+            print("  parXOpt =", str([_parametricFit2D_scientificStr(par) for par in parXOpt])\
                                  .replace("'",""))
-            print("  parYOpt =", str([scientificStr_paraLeastSquare(par) for par in parYOpt])\
+            print("  parYOpt =", str([_parametricFit2D_scientificStr(par) for par in parYOpt])\
                                  .replace("'",""))
-            print("  parXErr =", str([scientificStr_paraLeastSquare(par) for par in parXErr])\
+            print("  parXErr =", str([_parametricFit2D_scientificStr(par) for par in parXErr])\
                                  .replace("'",""))
-            print("  parYErr =", str([scientificStr_paraLeastSquare(par) for par in parYErr])\
+            print("  parYErr =", str([_parametricFit2D_scientificStr(par) for par in parYErr])\
                                  .replace("'",""))
         #progress plot
         if progressPlot == True:
-            progressPlot_paraLeastSquare([parXforOpt, parYforOpt], funcXY, [dataXforOpt,dataYforOpt],\
-                                         dataRangeXY, paraRange=paraRange, verbosity=verbosity,\
-                                         optIdx=optIdx, bootIdx=bootIdx, iterErr2s=iterErr2s,\
-                                         downSamp=[s, sampStat], saveProgress=saveProgress)
+            _parametricFit2D_progressPlot([parXforOpt, parYforOpt], funcXY, [dataXforOpt,dataYforOpt],\
+                                          dataRangeXY, paraRange=paraRange, verbosity=verbosity,\
+                                          optIdx=optIdx, bootIdx=bootIdx, iterErr2s=iterErr2s,\
+                                          downSamp=[s, sampStat], saveProgress=saveProgress)
         #save the progress
         if saveProgress == True:
             progressDict = {}
@@ -270,6 +270,7 @@ def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRan
     if len(dataXY[0]) != len(dataXY[1]):
         print("ERROR: paraSquareErrorAve: lengths of dataX and dataY don't match")
         sys.exit(0)
+    checkParaRange = False
     outputStr = ""
     if iterErr2 is not None:
         if len(iterErr2) == 0: iterErr2.append([0, None, None])
@@ -281,11 +282,38 @@ def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRan
         outputStr += "[\"" + downSamp[1][0] + "\", "
         outputStr += str(int(downSamp[1][1]) if (downSamp[1][1] < np.inf) else np.inf) + ", "
         outputStr += str(int(downSamp[1][2]) if (downSamp[1][2] < np.inf) else np.inf) + "]"
+        if (downSamp[0] == 0) and (len(iterErr2) == 1): checkParaRange = True
     if verbosity >= 2: print(outputStr)
 
     lambdaX = lambda t : funcXY[0](t, parXY[0])
     lambdaY = lambda t : funcXY[1](t, parXY[1])
-    
+    #checking if futher partition in paraRange is needed
+    if checkParaRange == True:
+        if verbosity >= 1: print("Checking local minima inside each section of paraRange:", paraRange)
+        localOpt_tList = []
+        for x, y in tqdm(np.array(dataXY).T, disable=(verbosity < 2)):
+            distSquare = lambda t : paraSquareDist(t, [lambdaX,lambdaY],[x,y], normXYRatio=normXYRatio)
+            for paraIdx in range(len(paraRange)-1):
+                bounds = (paraRange[paraIdx], paraRange[paraIdx+1])
+                shgoResult = optimize.shgo(distSquare, [bounds], n=64, iters=3,sampling_method="sobol")
+                localOpt_ts = []
+                for shgo_t in shgoResult.xl:
+                    if (abs(shgo_t[0] - bounds[0]) > 1E-6) and (abs(shgo_t[0] - bounds[1]) > 1E-6):
+                        localOpt_ts.append(shgo_t[0])
+                localOpt_ts.sort()
+                if len(localOpt_ts) > 1: 
+                    for localOpt_idx in range(len(localOpt_ts)-1):
+                        localOpt_tList.append([localOpt_ts[localOpt_idx], localOpt_ts[localOpt_idx+1]])
+    if len(localOpt_tList) > 0:
+        _parametricFit2D_paraRangePlot(localOpt_tList, paraRange, verbosity=verbosity)
+        if verbosity >= 1: 
+            print("WARNING: input paraRange can be affected local minima degeneracies\n")
+            print("Please consider checking out the output plot, and include an additional paraRange "+
+                  "seperation point from in between the left(blue) and right(red) local minima")
+        _parametricFit2_ContinueYesNo()
+    else:
+        if verbosity >= 1: print("Input paraRange has no local minima degeneracies. Good to go\n")
+    #finding parametric variable t on the curve that has the shortest distance to the point
     (res2Sum, opt_ts, fullStat) = (0, [], [])
     for x, y in tqdm(np.array(dataXY).T, disable=(verbosity < 2)):
         distSquare = lambda t : paraSquareDist(t, [lambdaX, lambdaY], [x, y], normXYRatio=normXYRatio)
@@ -319,25 +347,125 @@ def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRan
 
     if verbosity >= 3:
         print("                                                average normalized square residual =",\
-              scientificStr_paraLeastSquare(res2Ave, 10))
+              _parametricFit2D_scientificStr(res2Ave, 10))
         print("  sample size =", len(dataXY[0]))
-        print("  parX =", str([scientificStr_paraLeastSquare(par) for par in parXY[0]])\
+        print("  parX =", str([_parametricFit2D_scientificStr(par) for par in parXY[0]])\
                           .replace("'",""))
-        print("  parY =", str([scientificStr_paraLeastSquare(par) for par in parXY[1]])\
+        print("  parY =", str([_parametricFit2D_scientificStr(par) for par in parXY[1]])\
                           .replace("'",""))
-        print("  [min_t, max_t] =",str([scientificStr_paraLeastSquare(min(opt_ts)),\
-                                        scientificStr_paraLeastSquare(max(opt_ts))]).replace("'", ""))
-        print("  head_tail normalized square error =", scientificStr_paraLeastSquare(err2HeadTail,10))
+        print("  [min_t, max_t] =",str([_parametricFit2D_scientificStr(min(opt_ts)),\
+                                        _parametricFit2D_scientificStr(max(opt_ts))]).replace("'", ""))
+        print("  head_tail normalized square error =", _parametricFit2D_scientificStr(err2HeadTail,10))
         print("")
     return res2Ave + err2HeadTail
-def paraSquareDist(t, funcXY, dataXY, normXYRatio=[1.0, 1.0]):
+def paraSquareDist(t, funcXY, dataXY, normXYRatio=[1.0, 1.0], iterCounter=[]):
+    if iterCounter != []: iterCounter[0] += 1
     return pow(normXYRatio[0]*(funcXY[0](t) - dataXY[0]), 2) +\
            pow(normXYRatio[1]*(funcXY[1](t) - dataXY[1]), 2)
-def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, paraRange=[-1.0, 1.0],\
-                                 verbosity=1, optIdx=None, bootIdx=None, iterErr2s=None,\
-                                 downSamp=None, saveProgress=False):
-    if downSamp[1][0] == "Hess":
-        return
+def printSavedProgress(fullPicklePath, verbosity=2):
+    progressDict = {}
+    try:
+        with open(fullPicklePath, "rb") as handle: progressDict = pickle.load(handle)
+    except OSError or FileNotFoundError:
+        print("The following file does not exist:\n ", fullPath)
+        sys.exit(0)
+
+    print("Print results from:\n ", fullPicklePath)
+    print("downSampling["+str(progressDict["downSamplingIterN"])+"]="+\
+          str(progressDict["downSampling"][:3]))
+    print("iterErr2[-1] =", progressDict["iterErr2"][-1][-1])
+    print("  parXOpt =", str([_parametricFit2D_scientificStr(par) for par in progressDict["parXOpt"]])\
+                              .replace("'",""))
+    print("  parYOpt =", str([_parametricFit2D_scientificStr(par) for par in progressDict["parYOpt"]])\
+                              .replace("'",""))
+    print("  parXErr =", str([_parametricFit2D_scientificStr(err) for err in progressDict["parXErr"]])\
+                              .replace("'",""))
+    print("  parYErr =", str([_parametricFit2D_scientificStr(err) for err in progressDict["parYErr"]])\
+                              .replace("'",""))
+    if verbosity >= 1:
+        print("")
+        print("  optimizationN =", progressDict["optimizationN"])
+        print("  bootstrapN    =", progressDict["bootstrapN"])
+        print("  parXBoot    =", str([_parametricFit2D_scientificStr(par[-1]) if (par != []) else -1\
+                                     for par in progressDict["parXBoot"]]).replace("'",""))
+        print("  parYBoot    =", str([_parametricFit2D_scientificStr(par[-1]) if (par != []) else -1\
+                                     for par in progressDict["parYBoot"]]).replace("'",""))
+        print("  parXBootErr =", str([_parametricFit2D_scientificStr(err)\
+                                     for err in progressDict["parXBootErr"]]).replace("'","")) 
+        print("  parYBootErr =", str([_parametricFit2D_scientificStr(err)\
+                                     for err in progressDict["parYBootErr"]]).replace("'","")) 
+        print("  parXHessErr =", str([_parametricFit2D_scientificStr(err)\
+                                     for err in progressDict["parXHessErr"]]).replace("'","")) 
+        print("  parYHessErr =", str([_parametricFit2D_scientificStr(err)\
+                                     for err in progressDict["parYHessErr"]]).replace("'","")) 
+    if verbosity >= 2:
+        print("")
+        print("  parXInit =", str([_parametricFit2D_scientificStr(par)\
+                                  for par in progressDict["parXYinit"][0]]).replace("'",""))
+        print("  parYInit =", str([_parametricFit2D_scientificStr(par)\
+                                  for par in progressDict["parXYinit"][1]]).replace("'",""))
+        print("  funcX =", progressDict["funcXY"][0])
+        print("  funcY =", progressDict["funcXY"][1])
+        print("  dataRangeXY   =", progressDict["dataRangeXY"])
+        print("  paraRange     =", progressDict["paraRange"])
+        print("  optMethod     =", progressDict["optMethod"])
+        print("  ratioHeadTail =", progressDict["ratioHeadTail"])
+        print("  randSeed      =", progressDict["randSeed"])
+def _parametricFit2D_paraRangePlot(localOpt_tList, paraRange, verbosity=1):
+    pathlib.Path(SAVE_DIR+"/zSavedProgress/").mkdir(exist_ok=True)
+    figName = SAVE_DIR+"/zSavedProgress/paraRangeLocalMinDegen.png"
+
+    paraBinN = 200
+    paraX = np.linspace(paraRange[0], paraRange[-1], paraBinN+1)[:-1]
+    paraLeftHist  = np.histogram(np.array(localOpt_tList).T[0], bins=paraBinN,\
+                                 range=[paraRange[0], paraRange[-1]])[0]
+    paraRightHist = np.histogram(np.array(localOpt_tList).T[1], bins=paraBinN,\
+                                 range=[paraRange[0], paraRange[-1]])[0]
+ 
+    fig = plt.figure(figsize=(12, 9))
+    matplotlib.rc("xtick", labelsize=16)
+    matplotlib.rc("ytick", labelsize=16)
+    gs = gridspec.GridSpec(1, 1)
+    ax = []
+    for i in range (gs.nrows*gs.ncols): 
+        ax.append(fig.add_subplot(gs[i]))
+        ax[-1].ticklabel_format(style="sci", scilimits=(-2, 2), axis="both")
+    fig.subplots_adjust(top=0.9, bottom=0.1, left=0.1, right=0.97)
+    
+    leftPlot  = ax[0].plot(paraX, paraLeftHist,  linewidth=2, color="blue", drawstyle="steps-mid")[0]
+    rightPlot = ax[0].plot(paraX, paraRightHist, linewidth=2, color="red",  drawstyle="steps-mid")[0]
+    ax[0].axhline(y=0, linewidth=2, color="black")
+    ax[0].set_title("Local Minima Degeneracies within Parametric Ranges", fontsize=24, y=1.03)
+    ax[0].set_xlabel("parametric variable", fontsize=20)
+    ax[0].set_ylabel("count", fontsize=20)
+    ax[0].set_xlim(paraRange[0], paraRange[-1])
+    ax[0].legend([leftPlot, rightPlot], ["left", "right"], loc="upper right", fontsize=20)
+
+    plt.savefig(figName)
+    plt.close(fig)
+    if verbosity >= 1: print("Saving plot:\n   ", figName)
+#stackoverflow.com/questions/3041986
+def _parametricFit2_ContinueYesNo(default=False):
+    validity = {"": default, "yes": True, "y": True, "ye": True, "no": False, "n": False}
+    prompt = ""
+    if   default == True:  prompt = "Continue processing? [Y/n] "
+    elif default == False: prompt = "Continue processing? [y/N] "
+    else: raise ValueError("ERROR: _parametricFit2_ContinueYesNo: invalid default vale: "+default)
+   
+    contBool = None
+    while True:
+        sys.stdout.write(prompt)
+        choice = input().lower()
+        if choice in validity:
+            contBool = validity[choice]
+            break
+        else: 
+            sys.stdout.write("Please respond with 'yes' or 'no' " "(or 'y' or 'n').\n")
+    if contBool == False: sys.exit(0)
+def _parametricFit2D_progressPlot(parXYFit, funcXY, dataXY, dataRangeXY, paraRange=[-1.0, 1.0],\
+                                  verbosity=1, optIdx=None, bootIdx=None, iterErr2s=None,\
+                                  downSamp=None, saveProgress=False):
+    if downSamp[1][0] == "Hess": return
     pathlib.Path(SAVE_DIR+"/zSavedProgress/").mkdir(exist_ok=True)
     figName = SAVE_DIR+"/zSavedProgress/progressPlot_Opt.png"
     if (len(iterErr2s) == 1) and (downSamp[1][2] == 0): figName = figName.replace("Opt", "Init")
@@ -384,7 +512,7 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, paraRang
     matplotlib.rc("ytick", labelsize=16)
     gs = gridspec.GridSpec(1, 1)
     ax = []
-    for i in range (gs.nrows*gs.ncols): ax.append(fig.add_subplot(gs[i])); 
+    for i in range (gs.nrows*gs.ncols): ax.append(fig.add_subplot(gs[i]))
 
     fig.subplots_adjust(top=0.9, bottom=0.1, left=0.12, right=0.98)
     ax[0].plot(iterations, res2Aves, color="blue", linewidth=2, marker="o", markersize=5)
@@ -394,7 +522,7 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, paraRang
     ax[0].set_ylabel("residual", fontsize=20)
     xlim, ylim = ax[0].get_xlim(), ax[0].get_ylim()
     ax[0].set_xlim(0, 1.06*xlim[1])
-    ax[0].text(minIter, ylim[0]+0.015*(ylim[1]-ylim[0]), scientificStr_paraLeastSquare(res2Min, 3),\
+    ax[0].text(minIter, ylim[0]+0.015*(ylim[1]-ylim[0]), _parametricFit2D_scientificStr(res2Min, 3),\
                color="blue", fontsize=14, weight="bold")
 
     if downSamp[1][0] == "Boot":
@@ -412,7 +540,7 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, paraRang
     plotTile += str(int(downSamp[1][1]) if (downSamp[1][1] < np.inf) else np.inf) + ","
     plotTile += str(int(downSamp[1][2]) if (downSamp[1][2] < np.inf) else np.inf) + "], "
     plotTile += "Iter=" + str(iterErr2s[-1][-1][0]) + ", NormSqErr="
-    plotTile += scientificStr_paraLeastSquare(iterErr2s[-1][-1][1])
+    plotTile += _parametricFit2D_scientificStr(iterErr2s[-1][-1][1])
     ax[0].set_title(plotTile, fontsize=20, y=1.03)
     ax[0].set_xlabel("x", fontsize=20)
     ax[0].set_ylabel("y", fontsize=20)
@@ -424,15 +552,15 @@ def progressPlot_paraLeastSquare(parXYFit, funcXY, dataXY, dataRangeXY, paraRang
     plt.savefig(figDSName)
     plt.close(fig)
     if verbosity >= 1: print("Saving plots:\n   ", figName, "\n   ", figDSName)
-def roundSig_paraLeastSquare(val, sigFig=3):
+def _parametricFit2D_roundSig(val, sigFig=3):
     if val == 0: return val;
     return round(val, sigFig-int(np.floor(np.log10(abs(val))))-1);
-def scientificStr_paraLeastSquare(val, sigFig=3):
+def _parametricFit2D_scientificStr(val, sigFig=3):
     valStr = ""
     if val == 0:
         valStr = "0.0"
     elif abs(np.floor(np.log10(abs(val)))) < sigFig:
-        valStr = str(roundSig_paraLeastSquare(val, sigFig=sigFig))
+        valStr = str(_parametricFit2D_roundSig(val, sigFig=sigFig))
     else:
         valStr = "{:." + str(sigFig-1) + "e}"
         valStr = valStr.format(val)
@@ -441,56 +569,6 @@ def scientificStr_paraLeastSquare(val, sigFig=3):
         valStr = valStr.replace("e0", "")
         valStr = valStr.replace("e-0", "e-")
     return valStr
-def printSavedProgress(fullPicklePath, verbosity=2):
-    progressDict = {}
-    try:
-        with open(fullPicklePath, "rb") as handle: progressDict = pickle.load(handle)
-    except OSError or FileNotFoundError:
-        print("The following file does not exist:\n ", fullPath)
-        sys.exit(0)
-
-    print("Print results from:\n ", fullPicklePath)
-    print("downSampling["+str(progressDict["downSamplingIterN"])+"]="+\
-          str(progressDict["downSampling"][:3]))
-    print("iterErr2[-1] =", progressDict["iterErr2"][-1][-1])
-    print("  parXOpt =", str([scientificStr_paraLeastSquare(par) for par in progressDict["parXOpt"]])\
-                              .replace("'",""))
-    print("  parYOpt =", str([scientificStr_paraLeastSquare(par) for par in progressDict["parYOpt"]])\
-                              .replace("'",""))
-    print("  parXErr =", str([scientificStr_paraLeastSquare(err) for err in progressDict["parXErr"]])\
-                              .replace("'",""))
-    print("  parYErr =", str([scientificStr_paraLeastSquare(err) for err in progressDict["parYErr"]])\
-                              .replace("'",""))
-    if verbosity >= 1:
-        print("")
-        print("  optimizationN =", progressDict["optimizationN"])
-        print("  bootstrapN    =", progressDict["bootstrapN"])
-        print("  parXBoot    =", str([scientificStr_paraLeastSquare(par[-1]) if (par != []) else -1\
-                                     for par in progressDict["parXBoot"]]).replace("'",""))
-        print("  parYBoot    =", str([scientificStr_paraLeastSquare(par[-1]) if (par != []) else -1\
-                                     for par in progressDict["parYBoot"]]).replace("'",""))
-        print("  parXBootErr =", str([scientificStr_paraLeastSquare(err)\
-                                     for err in progressDict["parXBootErr"]]).replace("'","")) 
-        print("  parYBootErr =", str([scientificStr_paraLeastSquare(err)\
-                                     for err in progressDict["parYBootErr"]]).replace("'","")) 
-        print("  parXHessErr =", str([scientificStr_paraLeastSquare(err)\
-                                     for err in progressDict["parXHessErr"]]).replace("'","")) 
-        print("  parYHessErr =", str([scientificStr_paraLeastSquare(err)\
-                                     for err in progressDict["parYHessErr"]]).replace("'","")) 
-    if verbosity >= 2:
-        print("")
-        print("  parXInit =", str([scientificStr_paraLeastSquare(par)\
-                                  for par in progressDict["parXYinit"][0]]).replace("'",""))
-        print("  parYInit =", str([scientificStr_paraLeastSquare(par)\
-                                  for par in progressDict["parXYinit"][1]]).replace("'",""))
-        print("  funcX =", progressDict["funcXY"][0])
-        print("  funcY =", progressDict["funcXY"][1])
-        print("  dataRangeXY   =", progressDict["dataRangeXY"])
-        print("  paraRange     =", progressDict["paraRange"])
-        print("  optMethod     =", progressDict["optMethod"])
-        print("  ratioHeadTail =", progressDict["ratioHeadTail"])
-        print("  randSeed      =", progressDict["randSeed"])
-
 
 
 
@@ -525,13 +603,6 @@ def example_parametricFit2D():
         x = 2*math.sin(t + math.pi/5) + 0.5*t
         y = 1.2*math.cos(t + math.pi/5) + 0.8*math.sin(t + math.pi/5)
         return x, y
-    '''
-    paraRangeOrig = [0, math.pi]
-    def curve(t):
-        x = 2*math.sin(t + math.pi/5) + 0.5 
-        y = 1.2*math.cos(t + math.pi/5) + 0.8*math.sin(t + math.pi/5)
-        return x, y
-    '''
     def polyFunc(x, coefs):
         if np.isscalar(coefs) == True:
             print("ERROR: polyFunc: coefs must be a 1D array/list")
@@ -540,6 +611,17 @@ def example_parametricFit2D():
         for i, c in enumerate(coefs):
             result += c*np.power(x, i)
         return result
+    def instantPlot(downSampling, samplingN=np.inf):
+        pickleName = SAVE_DIR+"/zSavedProgress/savedProgress.pickle"
+        if os.path.isfile(pickleName) == False: return [["Opt", samplingN, 0, None, None]]
+        progressDict = {}
+        with open(pickleName, "rb") as handle: progressDict = pickle.load(handle)
+        downSampN = len(progressDict["iterErr2"])
+        downSamplingO = downSampling.copy()
+        if downSampN < len(downSamplingO): downSamplingO = downSamplingO[:downSampN]
+        downSampNtoAdd = downSampN - len(downSamplingO) + 1
+        downSamplingO = [*downSamplingO, *[["Opt", samplingN, 0, None, None]]*downSampNtoAdd] 
+        return downSamplingO
     def truncateColorMap(cmap, lowR, highR):
         cmapNew = matplotlib.colors.LinearSegmentedColormap.from_list(\
                   "trunc({n}, {l:.2f}, {h:.2f})".format(n=cmap.name, l=lowR, h=highR),\
@@ -571,29 +653,19 @@ def example_parametricFit2D():
     ###may need to get a systems of linear equation solver for both x&y to get a few points correct
     funcX = polyFunc
     funcY = polyFunc
-    
     ###################################################################################################
-    initX = [2.2, 2.54659, -4.32652, -3.34659, 2.02652]
-    initY = [-0.3, 3.34015, 0.736364, -2.89015, 0.113636]
+    #initX = [2.2, 2.54659, -4.32652, -3.34659, 2.02652]
+    #initY = [-0.3, 3.34015, 0.736364, -2.89015, 0.113636]
+    initX = [2.3, 1.1233, -5.24659, -1.8233, 2.84659]
+    initY = [-0.2, 3.71818, 1.06364, -3.21818, -0.363636]
     downSampling=[  ["Opt",  np.inf, 0, None, None],\
-                  *[["Opt",  1000,   1000, None, None]]*5,\
+                  *[["Opt",  3000,   1000, None, None]]*5,\
                     ["Opt",  np.inf, 200,  None, None],\
-                  *[["Boot", 1000,   1000, None, None]]*30]
-    ###testing initial
-    #downSampling = [["Opt", np.inf, 0, None, None],\
-    #                ["Opt", 1000, 100, None, None],\
-    #                ["Opt", np.inf, 0, None, None] ]
-    #saveProg=False
-    ###################################################################################################
-#    initX = [ 2.0, 1.0, -1.5, 0.0, 0.0]
-#    initY = [-0.5, 1.2,  0.5, 0.0, 0.0]
-#    downSampling=[*[["Opt",  100,    1000, None, None]]*3,\
-#                  *[["Opt",  1000,   1000, None, None]]*14,\
-#                    ["Opt",  np.inf, 200,  None, None],\
-#                  *[["Boot", 1000,   1000, None, None]]*30]
+                  *[["Boot", 3000,   200, None, None]]*30]
+    #downSampling = instantPlot(downSampling, samplingN=1000); saveProg=False 
 
-    paraRange     = [-1.0, -0.5, 0.0, 0.5, 1.0]
-    ratioHeadTail = [0.0, 0.0]
+    paraRange     = [-1.0, -0.6, 1.0]
+    ratioHeadTail = [0.01, 0.01]
     parXOpt, parYOpt, parXErr, parYErr, res2AveVal = \
         paraLeastSquare([initX, initY], [funcX, funcY], data, rangeXY, optMethod=optMethod,\
                         paraRange=paraRange, ratioHeadTail=ratioHeadTail,\
@@ -604,11 +676,11 @@ def example_parametricFit2D():
     fitFuncX = funcX(fitT, parXOpt)
     fitFuncY = funcY(fitT, parYOpt)
     print("Results from paraLeastSquare():")
-    print("  average normalized square residual =", scientificStr_paraLeastSquare(res2AveVal))
-    print("  parXOpt =", str([scientificStr_paraLeastSquare(par) for par in parXOpt]).replace("'", ""))
-    print("  parYOpt =", str([scientificStr_paraLeastSquare(par) for par in parYOpt]).replace("'", ""))
-    print("  parXErr =", str([scientificStr_paraLeastSquare(err) for err in parXErr]).replace("'", ""))
-    print("  parYErr =", str([scientificStr_paraLeastSquare(err) for err in parYErr]).replace("'", ""))
+    print("  average normalized square residual =", _parametricFit2D_scientificStr(res2AveVal))
+    print("  parXOpt =",str([_parametricFit2D_scientificStr(par) for par in parXOpt]).replace("'", ""))
+    print("  parYOpt =",str([_parametricFit2D_scientificStr(par) for par in parYOpt]).replace("'", ""))
+    print("  parXErr =",str([_parametricFit2D_scientificStr(err) for err in parXErr]).replace("'", ""))
+    print("  parYErr =",str([_parametricFit2D_scientificStr(err) for err in parYErr]).replace("'", ""))
     #plot
     fig = plt.figure(figsize=(12, 18))
     matplotlib.rc("xtick", labelsize=16)
@@ -637,15 +709,15 @@ def example_parametricFit2D():
         parYOptSamp = [rd.gauss(par, max(0, parYErr[ny])) for ny, par in enumerate(parYOpt)]
         sampFitFuncX = funcX(fitT, parXOptSamp)
         sampFitFuncY = funcY(fitT, parYOptSamp) 
-        plotFitted, = ax[1].plot(sampFitFuncX, sampFitFuncY, linewidth=3, color="red", alpha=0.5)
-    plotGiven, = ax[1].plot(curveX, curveY, linewidth=5, color="blue")
+        plotFitted = ax[1].plot(sampFitFuncX, sampFitFuncY, linewidth=3, color="red", alpha=0.5)[0]
+    plotGiven = ax[1].plot(curveX, curveY, linewidth=5, color="blue")[0]
     ax[1].set_title("Parametric Curve: Given vs Fitted (sampled from fit err)", fontsize=24, y=1.03)
     ax[1].set_xlabel("x", fontsize=20)
     ax[1].set_ylabel("y", fontsize=20)
     ax[1].set_aspect("equal")
     ax[1].set_xlim(rangeXY[0][0], rangeXY[0][1]+1.18)
     ax[1].set_ylim(*rangeXY[1])
-    ax[1].legend([plotGiven, plotFitted], ["give", "fitted"], loc="upper right", fontsize=20)
+    ax[1].legend([plotGiven, plotFitted], ["given", "fitted"], loc="upper right", fontsize=20)
 
     figName = "paraFitCurve2D.png"
     plt.savefig(figName)
