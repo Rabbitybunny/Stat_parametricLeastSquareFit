@@ -56,23 +56,21 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
     normXYRatio = [1.0/(dataRangeXY[0][1]-dataRangeXY[0][0]),\
                    1.0/(dataRangeXY[1][1]-dataRangeXY[1][0])]
     if len(dataXInput) != len(dataYInput):
-        print("ERROR: paraLeastSquare: lengths of dataX and dataY don't match")
-        sys.exit(0)   
+        raise ValueError("paraLeastSquare: lengths of dataX and dataY don't match")
  
     if (downSampling is None) or (len(downSampling) == 0):
         downSampling = [["Opt",  np.inf, np.inf, None, None],\
                         ["Hess", np.inf, np.inf, None, None]]
     elif downSampling == "DEFAULT":
-        downSampling=[ [["Opt", np.inf, 0, None, None]],\
-                      *[["Opt",  1000,   1000, None, None]]*(parXN+parYN),\
+        downSampling=[  ["Opt",  1000,   0,    None, None],\
+                      *[["Opt",  3000,   1000, None, None]]*5,\
                         ["Opt",  np.inf, 200,  None, None],\
-                      *[["Boot", 1000,   1000, None, None]]*30] 
+                      *[["Boot", 3000,   200,  None, None]]*30]
     for s, sampStat in enumerate(downSampling):
         if sampStat[0] not in ["Opt", "Boot", "Hess"]:
-            print("ERROR: paraLeastSquare: the options are " +\
-                  "(\"Opt\", \"Boot\", \"Hess\"), but the following is found:")
-            print("    downSampling["+str(s)+"][0] = \""+str(sampStat[0])+"\"")
-            sys.exit(0)
+            raise ValueError("paraLeastSquare: the options are "+\
+                             "(\"Opt\", \"Boot\", \"Hess\"), but the following is found:\n"+\
+                             "    downSampling["+str(s)+"][0] = \""+str(sampStat[0])+"\"")
     if verbosity >= 1:
         print("\n----------------------------------------------------------------Begin Parametric Fit")
    
@@ -87,9 +85,8 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
     iterErr2s                          = []
     if readProgress == True:
         if os.path.isdir(SAVE_DIR) is False:
-            print("ERROR: paraLeastSquare: the directory for SAVE_DIR does not exist:")
-            print("   ", SAVE_DIR)
-            sys.exit(0)
+            raise NotADirectoryError("paraLeastSquare: the directory for SAVE_DIR does not exist:\n"+\
+                                     "    "+SAVE_DIR)
         try:
             progressDict = {}
             with open(pickleName, "rb") as handle: progressDict = pickle.load(handle)
@@ -144,9 +141,8 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
             dataXforOpt = [d[0] for d in sampledData]
             dataYforOpt = [d[1] for d in sampledData]
         if len(dataXforOpt) < (parXN + parYN):
-            print("ERROR: paraLeastSquare: the number of samples ("+str(len(dataXforOpt))+")"+\
-                  "is fewer than the number of parameters("+str(parXN + parYN)+")")
-            sys.exit(0)
+            raise AssertionError("paraLeastSquare: the number of samples ("+str(len(dataXforOpt))+")"+\
+                                 "is fewer than the number of parameters("+str(parXN + parYN)+")")
         #main optimization
         if sampStat[0] in ["Opt", "Boot"]: 
             iterErr2s.append([])
@@ -268,8 +264,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
 def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRange=[-1.0, 1.0],\
                           ratioHeadTail=[0.0, 0.0], iterErr2=None, downSamp=None, verbosity=1):
     if len(dataXY[0]) != len(dataXY[1]):
-        print("ERROR: paraSquareErrorAve: lengths of dataX and dataY don't match")
-        sys.exit(0)
+        raise ValueError("paraSquareErrorAve: lengths of dataX and dataY don't match")
     checkParaRange = False
     outputStr = ""
     if iterErr2 is not None:
@@ -304,15 +299,16 @@ def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRan
                 if len(localOpt_ts) > 1: 
                     for localOpt_idx in range(len(localOpt_ts)-1):
                         localOpt_tList.append([localOpt_ts[localOpt_idx], localOpt_ts[localOpt_idx+1]])
-    if len(localOpt_tList) > 0:
-        _parametricFit2D_paraRangePlot(localOpt_tList, paraRange, verbosity=verbosity)
-        if verbosity >= 1: 
-            print("WARNING: input paraRange can be affected local minima degeneracies\n")
-            print("Please consider checking out the output plot, and include an additional paraRange "+
-                  "seperation point from in between the left(blue) and right(red) local minima")
-        _parametricFit2_ContinueYesNo()
-    else:
-        if verbosity >= 1: print("Input paraRange has no local minima degeneracies. Good to go\n")
+        if len(localOpt_tList) > 0:
+            _parametricFit2D_paraRangePlot(localOpt_tList, paraRange, verbosity=verbosity)
+            if verbosity >= 1: 
+                print("WARNING: input paraRange can be affected local minima degeneracies\n")
+                print("Please consider checking out the output plot, and include an additional "
+                      "paraRange seperation point from in between the left(blue) and right(red) "
+                      "local minima")
+            _parametricFit2_ContinueYesNo()
+        else:
+            if verbosity >= 1: print("Input paraRange has no local minima degeneracies. Good to go\n")
     #finding parametric variable t on the curve that has the shortest distance to the point
     (res2Sum, opt_ts, fullStat) = (0, [], [])
     for x, y in tqdm(np.array(dataXY).T, disable=(verbosity < 2)):
@@ -450,7 +446,7 @@ def _parametricFit2_ContinueYesNo(default=False):
     prompt = ""
     if   default == True:  prompt = "Continue processing? [Y/n] "
     elif default == False: prompt = "Continue processing? [y/N] "
-    else: raise ValueError("ERROR: _parametricFit2_ContinueYesNo: invalid default vale: "+default)
+    else: raise ValueError("_parametricFit2_ContinueYesNo: invalid default vale: "+default)
    
     contBool = None
     while True:
@@ -577,17 +573,6 @@ def _parametricFit2D_scientificStr(val, sigFig=3):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 #######################################################################################################
 #######################################################################################################
 #######################################################################################################
@@ -605,8 +590,7 @@ def example_parametricFit2D():
         return x, y
     def polyFunc(x, coefs):
         if np.isscalar(coefs) == True:
-            print("ERROR: polyFunc: coefs must be a 1D array/list")
-            sys.exit(0)
+            raise TypeError("polyFunc: coefs must be a 1D array/list")
         result = 0
         for i, c in enumerate(coefs):
             result += c*np.power(x, i)
@@ -658,10 +642,10 @@ def example_parametricFit2D():
     #initY = [-0.3, 3.34015, 0.736364, -2.89015, 0.113636]
     initX = [2.3, 1.1233, -5.24659, -1.8233, 2.84659]
     initY = [-0.2, 3.71818, 1.06364, -3.21818, -0.363636]
-    downSampling=[  ["Opt",  np.inf, 0, None, None],\
+    downSampling=[  ["Opt",  1000,   0,    None, None],\
                   *[["Opt",  3000,   1000, None, None]]*5,\
                     ["Opt",  np.inf, 200,  None, None],\
-                  *[["Boot", 3000,   200, None, None]]*30]
+                  *[["Boot", 3000,   200,  None, None]]*30]
     #downSampling = instantPlot(downSampling, samplingN=1000); saveProg=False 
 
     paraRange     = [-1.0, -0.6, 1.0]
