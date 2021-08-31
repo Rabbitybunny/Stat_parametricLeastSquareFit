@@ -13,7 +13,6 @@ from tqdm import tqdm
 import pickle
 
 
-SAVE_DIR=str(pathlib.Path().absolute())
 #######################################################################################################
 #downSampling[i] = [operation type ("Opt": optimization, 
 #                                   "Boot": error from bootstrap, recommending 30 iterations,
@@ -36,13 +35,16 @@ SAVE_DIR=str(pathlib.Path().absolute())
 #randSeed      = random seed for downSampling
 #downSampling  = (see above)
 #verbosity:    controlling the amount of output messages, up to 4
-#progressPlot: saving plots in SAVE_DIR at each downSampling iteration
-#saveProgress: saving pickle files in SAVE_DIR at each downSampling iteration
+#progressPlot: saving plots in savePath at each downSampling iteration
+#saveProgress: saving pickle files in savePath at each downSampling iteration
 #readProgress: reading from pickle files (if exist) to continue the optimization
+#savePath     : the directory where the files are saved to
+_PARAMETRICFIT2D_SAVEDIRNAME = "zSavedProgress"
 def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Mead",\
                     paraRange=[-1.0, -0.5, 0.0, 0.5, 1.0], ratioHeadTail=[0.01, 0.01],\
                     randSeed=None, downSampling="DEFAULT", verbosity=3,\
-                    progressPlot=False, saveProgress=False, readProgress=True): 
+                    progressPlot=False, saveProgress=False, readProgress=True,\
+                    savePath=str(pathlib.Path().absolute())):
     #drop out-of-range data
     dataXInput = []
     dataYInput = []
@@ -62,10 +64,10 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
         downSampling = [["Opt",  np.inf, np.inf, None, None],\
                         ["Hess", np.inf, np.inf, None, None]]
     elif downSampling == "DEFAULT":
-        downSampling=[  ["Opt",  1000,   0,    None, None],\
-                      *[["Opt",  3000,   1000, None, None]]*5,\
-                        ["Opt",  np.inf, 200,  None, None],\
-                      *[["Boot", 3000,   200,  None, None]]*30]
+        downSampling=[  ["Opt",  1000,   0,      None, None],\
+                      *[["Opt",  1000,   1000,   None, None]]*2,\
+                        ["Opt",  np.inf, np.inf, None, None],\
+                      *[["Boot", np.inf, 200,    None, None]]*30]
     for s, sampStat in enumerate(downSampling):
         if sampStat[0] not in ["Opt", "Boot", "Hess"]:
             raise ValueError("paraLeastSquare: the options are "+\
@@ -79,14 +81,14 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
     parXBootErr, parYBootErr = [-1 for _ in range(parXN)], [-1 for _ in range(parYN)]
     parXHessErr, parYHessErr = [-1 for _ in range(parXN)], [-1 for _ in range(parYN)]
     #recover saved parameters for the next optimization
-    pickleName = SAVE_DIR+"/zSavedProgress/savedProgress.pickle"
+    pickleName = "/".join( (savePath, _PARAMETRICFIT2D_SAVEDIRNAME, "savedProgress.pickle") )
     downSamplingIterN, optIdx, bootIdx = -1, [], []
     parXBoot, parYBoot                 = [[] for _ in range(parXN)], [[] for _ in range(parYN)]
     iterErr2s                          = []
     if readProgress == True:
-        if os.path.isdir(SAVE_DIR) is False:
-            raise NotADirectoryError("paraLeastSquare: the directory for SAVE_DIR does not exist:\n"+\
-                                     "    "+SAVE_DIR)
+        if os.path.isdir(savePath) is False:
+            raise NotADirectoryError("paraLeastSquare: the directory for savePath does not exist:\n"+\
+                                     "   ", savePath)
         try:
             progressDict = {}
             with open(pickleName, "rb") as handle: progressDict = pickle.load(handle)
@@ -105,7 +107,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
             parYBoot = progressDict["parYBoot"].copy()
             iterErr2s  = progressDict["iterErr2"].copy()
         except OSError or FileNotFoundError:
-            pathlib.Path(SAVE_DIR+"/zSavedProgress/").mkdir(exist_ok=True)
+            pathlib.Path("/".join( (savePath, _PARAMETRICFIT2D_SAVEDIRNAME) )).mkdir(exist_ok=True)
         #allow change in input parameters
         parXOpt = parXOpt[:parXN]
         for xn in range(parXN):
@@ -187,8 +189,9 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
                 res2 = lambda par : len(dataXforOpt)\
                    *paraSquareResidualAve([par[:parXN],par[parXN:]],funcXY,[dataXforOpt,dataYforOpt],\
                                           normXYRatio=normXYRatio, paraRange=paraRange,\
-                                          ratioHeadTail=[0.0, 0.0], verbosity=(verbosity-1),\
-                                          iterErr2=iterErr2Err, downSamp=[s, sampStat])
+                                          ratioHeadTail=[0.0, 0.0],
+                                          iterErr2=iterErr2Err, downSamp=[s, sampStat],
+                                          verbosity=verbosity, progressPlot=progressPlot)
                 sigma2 = res2([*parXOpt, *parYOpt])/(len(dataXforOpt) - parXN - parYN)
                 hessFunc = nd.Hessian(res2)
                 hessInv  = linalg.inv(hessFunc([*parXOpt, *parYOpt]))
@@ -215,7 +218,8 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
             _parametricFit2D_progressPlot([parXforOpt, parYforOpt], funcXY, [dataXforOpt,dataYforOpt],\
                                           dataRangeXY, paraRange=paraRange, verbosity=verbosity,\
                                           optIdx=optIdx, bootIdx=bootIdx, iterErr2s=iterErr2s,\
-                                          downSamp=[s, sampStat], saveProgress=saveProgress)
+                                          downSamp=[s, sampStat], saveProgress=saveProgress,\
+                                          savePath=savePath)
         #save the progress
         if saveProgress == True:
             progressDict = {}
@@ -260,9 +264,10 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
     if verbosity >= 1:
         print("-------------------------------------------------------------Parametric Fit Complete\n")
     res2AveVal = iterErr2s[-1][-1][1]
-    return parXOpt, parYOpt, parXErr, parYErr, res2AveVal
+    return [parXOpt, parYOpt], [parXErr, parYErr], res2AveVal
 def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRange=[-1.0, 1.0],\
-                          ratioHeadTail=[0.0, 0.0], iterErr2=None, downSamp=None, verbosity=1):
+                          ratioHeadTail=[0.0, 0.0], iterErr2=None, downSamp=None,\
+                          verbosity=1, progressPlot=True, savePath="."):
     if len(dataXY[0]) != len(dataXY[1]):
         raise ValueError("paraSquareErrorAve: lengths of dataX and dataY don't match")
     checkParaRange = False
@@ -278,15 +283,15 @@ def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRan
         outputStr += str(int(downSamp[1][1]) if (downSamp[1][1] < np.inf) else np.inf) + ", "
         outputStr += str(int(downSamp[1][2]) if (downSamp[1][2] < np.inf) else np.inf) + "]"
         if (downSamp[0] == 0) and (len(iterErr2) == 1): checkParaRange = True
-    if verbosity >= 2: print(outputStr)
+    if verbosity >= 3: print(outputStr)
 
     lambdaX = lambda t : funcXY[0](t, parXY[0])
     lambdaY = lambda t : funcXY[1](t, parXY[1])
     #checking if futher partition in paraRange is needed
     if checkParaRange == True:
-        if verbosity >= 1: print("Checking local minima inside each section of paraRange:", paraRange)
+        if verbosity >= 2: print("Checking local minima inside each section of paraRange:", paraRange)
         localOpt_tList = []
-        for x, y in tqdm(np.array(dataXY).T, disable=(verbosity < 2)):
+        for x, y in tqdm(np.array(dataXY).T, disable=(verbosity < 3)):
             distSquare = lambda t : paraSquareDist(t, [lambdaX,lambdaY],[x,y], normXYRatio=normXYRatio)
             for paraIdx in range(len(paraRange)-1):
                 bounds = (paraRange[paraIdx], paraRange[paraIdx+1])
@@ -300,18 +305,24 @@ def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRan
                     for localOpt_idx in range(len(localOpt_ts)-1):
                         localOpt_tList.append([localOpt_ts[localOpt_idx], localOpt_ts[localOpt_idx+1]])
         if len(localOpt_tList) > 0:
-            _parametricFit2D_paraRangePlot(localOpt_tList, paraRange, verbosity=verbosity)
-            if verbosity >= 1: 
+            if progressPlot == True: 
+                _parametricFit2D_paraRangePlot(localOpt_tList, paraRange, len(dataXY[0]),\
+                                               verbosity=verbosity, savePath=savePath)
+            if verbosity >= 2: 
                 print("WARNING: input paraRange can be affected local minima degeneracies\n")
-                print("Please consider checking out the output plot, and include an additional "
-                      "paraRange seperation point from in between the left(blue) and right(red) "
-                      "local minima")
-            _parametricFit2_ContinueYesNo()
+                print("Please consider checking out the output plot (needs progressPlot == True), "
+                      "and include an additional paraRange seperation point from in between "
+                      "the left(blue) and right(red) local minima")
+            if verbosity >= 3:
+                print("The degenerate pairs in parametric variable are:")
+                for localPair in localOpt_tList: print(" ", localPair)
+                print("")
+            if len(localOpt_tList) > len(dataXY[0])/1000: _parametricFit2_ContinueYesNo()
         else:
-            if verbosity >= 1: print("Input paraRange has no local minima degeneracies. Good to go\n")
+            if verbosity >= 2: print("Input paraRange has no local minima degeneracies. Good to go\n")
     #finding parametric variable t on the curve that has the shortest distance to the point
     (res2Sum, opt_ts, fullStat) = (0, [], [])
-    for x, y in tqdm(np.array(dataXY).T, disable=(verbosity < 2)):
+    for x, y in tqdm(np.array(dataXY).T, disable=(verbosity < 3)):
         distSquare = lambda t : paraSquareDist(t, [lambdaX, lambdaY], [x, y], normXYRatio=normXYRatio)
         opt_t = paraRange[0]
         for paraIdx in range(len(paraRange)-1):
@@ -341,7 +352,7 @@ def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRan
     err2HeadTail = err2HeadTail/len(dataXY[0])
     if iterErr2 is not None: iterErr2[-1] = [iterErr2[-1][0], res2Ave, err2HeadTail]
 
-    if verbosity >= 3:
+    if verbosity >= 4:
         print("                                                average normalized square residual =",\
               _parametricFit2D_scientificStr(res2Ave, 10))
         print("  sample size =", len(dataXY[0]))
@@ -358,6 +369,18 @@ def paraSquareDist(t, funcXY, dataXY, normXYRatio=[1.0, 1.0], iterCounter=[]):
     if iterCounter != []: iterCounter[0] += 1
     return pow(normXYRatio[0]*(funcXY[0](t) - dataXY[0]), 2) +\
            pow(normXYRatio[1]*(funcXY[1](t) - dataXY[1]), 2)
+def getInstantPlotDownSampling(downSampling=None, savePath=str(pathlib.Path().absolute())):
+    if downSampling == None: return [["Opt", np.inf, 0, None, None]]
+    pickleName = "/".join( (savePath, _PARAMETRICFIT2D_SAVEDIRNAME, "savedProgress.pickle") )
+    if os.path.isfile(pickleName) == False: return [["Opt", downSampling[0][1], 0, None, None]]
+    progressDict = {}
+    with open(pickleName, "rb") as handle: progressDict = pickle.load(handle)
+    downSampN = len(progressDict["iterErr2"])
+    downSamplingO = downSampling.copy()
+    if downSampN < len(downSamplingO): downSamplingO = downSamplingO[:downSampN]
+    downSampNtoAdd = downSampN - len(downSamplingO) + 1
+    downSamplingO = [*downSamplingO, *[["Opt", samplingN, 0, None, None]]*downSampNtoAdd]
+    return downSamplingO
 def printSavedProgress(fullPicklePath, verbosity=2):
     progressDict = {}
     try:
@@ -407,9 +430,9 @@ def printSavedProgress(fullPicklePath, verbosity=2):
         print("  optMethod     =", progressDict["optMethod"])
         print("  ratioHeadTail =", progressDict["ratioHeadTail"])
         print("  randSeed      =", progressDict["randSeed"])
-def _parametricFit2D_paraRangePlot(localOpt_tList, paraRange, verbosity=1):
-    pathlib.Path(SAVE_DIR+"/zSavedProgress/").mkdir(exist_ok=True)
-    figName = SAVE_DIR+"/zSavedProgress/paraRangeLocalMinDegen.png"
+def _parametricFit2D_paraRangePlot(localOpt_tList, paraRange, dataN, verbosity=1,savePath="."):
+    pathlib.Path("/".join( (savePath, _PARAMETRICFIT2D_SAVEDIRNAME) )).mkdir(exist_ok=True)
+    figName = "/".join( (savePath, _PARAMETRICFIT2D_SAVEDIRNAME, "paraRangeLocalMinDegen.png") )
 
     paraBinN = 200
     paraX = np.linspace(paraRange[0], paraRange[-1], paraBinN+1)[:-1]
@@ -431,7 +454,9 @@ def _parametricFit2D_paraRangePlot(localOpt_tList, paraRange, verbosity=1):
     leftPlot  = ax[0].plot(paraX, paraLeftHist,  linewidth=2, color="blue", drawstyle="steps-mid")[0]
     rightPlot = ax[0].plot(paraX, paraRightHist, linewidth=2, color="red",  drawstyle="steps-mid")[0]
     ax[0].axhline(y=0, linewidth=2, color="black")
-    ax[0].set_title("Local Minima Degeneracies within Parametric Ranges", fontsize=24, y=1.03)
+    plotTitle = "Local Minima Degeneracies within Parametric Ranges, "
+    plotTitle+= str(len(localOpt_tList)) + "/" + str(dataN)
+    ax[0].set_title(plotTitle, fontsize=20, y=1.03)
     ax[0].set_xlabel("parametric variable", fontsize=20)
     ax[0].set_ylabel("count", fontsize=20)
     ax[0].set_xlim(paraRange[0], paraRange[-1])
@@ -460,10 +485,10 @@ def _parametricFit2_ContinueYesNo(default=False):
     if contBool == False: sys.exit(0)
 def _parametricFit2D_progressPlot(parXYFit, funcXY, dataXY, dataRangeXY, paraRange=[-1.0, 1.0],\
                                   verbosity=1, optIdx=None, bootIdx=None, iterErr2s=None,\
-                                  downSamp=None, saveProgress=False):
+                                  downSamp=None, saveProgress=False, savePath="./"):
     if downSamp[1][0] == "Hess": return
-    pathlib.Path(SAVE_DIR+"/zSavedProgress/").mkdir(exist_ok=True)
-    figName = SAVE_DIR+"/zSavedProgress/progressPlot_Opt.png"
+    pathlib.Path("/".join( (savePath, _PARAMETRICFIT2D_SAVEDIRNAME) )).mkdir(exist_ok=True)
+    figName = "/".join( (savePath, _PARAMETRICFIT2D_SAVEDIRNAME, "progressPlot_Opt.png") )
     if (len(iterErr2s) == 1) and (downSamp[1][2] == 0): figName = figName.replace("Opt", "Init")
     elif downSamp[1][0] == "Boot": figName = figName.replace("Opt", "Boot")
     
@@ -498,17 +523,19 @@ def _parametricFit2D_progressPlot(parXYFit, funcXY, dataXY, dataRangeXY, paraRan
                     bootIters.append(totIter)
                     bootRes2Aves.append(iterErr2[-1][1])
 
-    binN = int(max(10, min(500, 3*math.sqrt(downSamp[1][1]))))
+    binN = int(max(10, min(500, 3*min( 1.0*len(dataXY[0]), math.sqrt(downSamp[1][1]) ))))
     fitT = np.linspace(paraRange[0], paraRange[-1], binN+1)[:-1]
-    fitFuncX = funcXY[0](fitT, parXYFit[0])
-    fitFuncY = funcXY[1](fitT, parXYFit[1])
+    fitCurveX = funcXY[0](fitT, parXYFit[0])
+    fitCurveY = funcXY[1](fitT, parXYFit[1])
 
     fig = plt.figure(figsize=(12, 9))
     matplotlib.rc("xtick", labelsize=16)
     matplotlib.rc("ytick", labelsize=16)
     gs = gridspec.GridSpec(1, 1)
     ax = []
-    for i in range (gs.nrows*gs.ncols): ax.append(fig.add_subplot(gs[i]))
+    for i in range (gs.nrows*gs.ncols): 
+        ax.append(fig.add_subplot(gs[i]))
+        ax[-1].ticklabel_format(style="sci", scilimits=(-2, 2), axis="both")
 
     fig.subplots_adjust(top=0.9, bottom=0.1, left=0.12, right=0.98)
     ax[0].plot(iterations, res2Aves, color="blue", linewidth=2, marker="o", markersize=5)
@@ -530,7 +557,7 @@ def _parametricFit2D_progressPlot(parXYFit, funcXY, dataXY, dataRangeXY, paraRan
     cmap = truncateColorMap(plt.get_cmap("jet"), 0.0, 0.92)
     hist = ax[0].hist2d(*dataXY, bins=binN, cmin=1, cmap=cmap, range=dataRangeXY)
     cb = fig.colorbar(hist[3], ax=ax[0]).mappable
-    ax[0].plot(fitFuncX, fitFuncY, linewidth=3, color="red")
+    ax[0].plot(fitCurveX, fitCurveY, linewidth=3, color="red")
     plotTile =  "DownSampling[" + str(downSamp[0]) + "]="
     plotTile += "[\"" + downSamp[1][0] + "\","
     plotTile += str(int(downSamp[1][1]) if (downSamp[1][1] < np.inf) else np.inf) + ","
@@ -578,10 +605,6 @@ def _parametricFit2D_scientificStr(val, sigFig=3):
 #######################################################################################################
 #######################################################################################################
 #######################################################################################################
-def exampleFunc_parametricFit2D(t):
-    x = 2*math.sin(t + math.pi/5) + 0.5*t
-    y = 1.2*math.cos(t + math.pi/5) + 0.8*math.sin(t + math.pi/5)
-    return x, y
 def example_parametricFit2D():
     paraRangeOrig = [-math.pi/4, 3*math.pi/2]
     def curve(t):
@@ -592,20 +615,8 @@ def example_parametricFit2D():
         if np.isscalar(coefs) == True:
             raise TypeError("polyFunc: coefs must be a 1D array/list")
         result = 0
-        for i, c in enumerate(coefs):
-            result += c*np.power(x, i)
+        for i, c in enumerate(coefs): result += c*np.power(x, i)
         return result
-    def instantPlot(downSampling, samplingN=np.inf):
-        pickleName = SAVE_DIR+"/zSavedProgress/savedProgress.pickle"
-        if os.path.isfile(pickleName) == False: return [["Opt", samplingN, 0, None, None]]
-        progressDict = {}
-        with open(pickleName, "rb") as handle: progressDict = pickle.load(handle)
-        downSampN = len(progressDict["iterErr2"])
-        downSamplingO = downSampling.copy()
-        if downSampN < len(downSamplingO): downSamplingO = downSamplingO[:downSampN]
-        downSampNtoAdd = downSampN - len(downSamplingO) + 1
-        downSamplingO = [*downSamplingO, *[["Opt", samplingN, 0, None, None]]*downSampNtoAdd] 
-        return downSamplingO
     def truncateColorMap(cmap, lowR, highR):
         cmapNew = matplotlib.colors.LinearSegmentedColormap.from_list(\
                   "trunc({n}, {l:.2f}, {h:.2f})".format(n=cmap.name, l=lowR, h=highR),\
@@ -614,11 +625,9 @@ def example_parametricFit2D():
 
     #sample setup
     binN    = 1000
-    sampleN = 20000
+    sampleN = 3000
     rd.seed(1)
     noiseSig = 0.2
-    rangeXY = [[-1.5, 3.5], [-2.2, 2.2]]
-
     paraT = np.linspace(*paraRangeOrig, binN+1)[:-1]
     curveX = [curve(t)[0] for t in paraT]
     curveY = [curve(t)[1] for t in paraT]
@@ -628,43 +637,46 @@ def example_parametricFit2D():
         x, y = rd.gauss(x, noiseSig), rd.gauss(y, noiseSig)
         data[0].append(x), data[1].append(y)
 
-    optMethod = "Nelder-Mead"
-    savePlot, saveProg, readProg = True, True, True
-
     ###################################################################################################
     #parametric fit
     ###heavily depends on initial conditions, can test with downSampling=[*[[100, 1]]*1] first
     ###may need to get a systems of linear equation solver for both x&y to get a few points correct
-    funcX = polyFunc
-    funcY = polyFunc
-    ###################################################################################################
+    rangeXY       = [[-1.5, 3.5], [-2.2, 2.2]]
+    paraRange     = [-1.0, -0.6, 1.0]
+    ratioHeadTail = [0.01, 0.01]
+    randSeed      = 0
+    savePlot, saveProg, readProg = True, True, True  
+
+    funcXY = [polyFunc, polyFunc]
     #initX = [2.2, 2.54659, -4.32652, -3.34659, 2.02652]
     #initY = [-0.3, 3.34015, 0.736364, -2.89015, 0.113636]
     initX = [2.3, 1.1233, -5.24659, -1.8233, 2.84659]
     initY = [-0.2, 3.71818, 1.06364, -3.21818, -0.363636]
-    downSampling=[  ["Opt",  1000,   0,    None, None],\
-                  *[["Opt",  3000,   1000, None, None]]*5,\
-                    ["Opt",  np.inf, 200,  None, None],\
-                  *[["Boot", 3000,   200,  None, None]]*30]
-    #downSampling = instantPlot(downSampling, samplingN=1000); saveProg=False 
+    downSampling=[  ["Opt",  100,   0,      None, None],\
+                  *[["Opt",  1000,   1000,   None, None]]*2,\
+                    ["Opt",  np.inf, np.inf, None, None],\
+                  *[["Boot", np.inf, 200,    None, None]]*30]
+    downSampling = getInstantPlotDownSampling(downSampling=downSampling); saveProg=False 
 
-    paraRange     = [-1.0, -0.6, 1.0]
-    ratioHeadTail = [0.01, 0.01]
-    parXOpt, parYOpt, parXErr, parYErr, res2AveVal = \
-        paraLeastSquare([initX, initY], [funcX, funcY], data, rangeXY, optMethod=optMethod,\
-                        paraRange=paraRange, ratioHeadTail=ratioHeadTail,\
-                        randSeed=0, downSampling=downSampling, verbosity=3,\
-                        progressPlot=savePlot, saveProgress=saveProg, readProgress=readProg)
+    parXYOpt, parXYErr, res2AveVal = paraLeastSquare([initX, initY], funcXY, data, rangeXY,\
+                                                     paraRange=paraRange, ratioHeadTail=ratioHeadTail,\
+                                                     randSeed=randSeed, downSampling=downSampling,\
+                                                     progressPlot=savePlot, saveProgress=saveProg,\
+                                                     readProgress=readProg)
 
     fitT = np.linspace(paraRange[0], paraRange[-1], binN+1)[:-1]
-    fitFuncX = funcX(fitT, parXOpt)
-    fitFuncY = funcY(fitT, parYOpt)
+    fitCurveX = funcXY[0](fitT, parXYOpt[0])
+    fitCurveY = funcXY[1](fitT, parXYOpt[1])
     print("Results from paraLeastSquare():")
     print("  average normalized square residual =", _parametricFit2D_scientificStr(res2AveVal))
-    print("  parXOpt =",str([_parametricFit2D_scientificStr(par) for par in parXOpt]).replace("'", ""))
-    print("  parYOpt =",str([_parametricFit2D_scientificStr(par) for par in parYOpt]).replace("'", ""))
-    print("  parXErr =",str([_parametricFit2D_scientificStr(err) for err in parXErr]).replace("'", ""))
-    print("  parYErr =",str([_parametricFit2D_scientificStr(err) for err in parYErr]).replace("'", ""))
+    print("  parXOpt =", str([_parametricFit2D_scientificStr(par) for par in parXYOpt[0]])\
+                         .replace("'", ""))
+    print("  parYOpt =", str([_parametricFit2D_scientificStr(par) for par in parXYOpt[1]])\
+                         .replace("'", ""))
+    print("  parXErr =", str([_parametricFit2D_scientificStr(err) for err in parXYErr[0]])\
+                         .replace("'", ""))
+    print("  parYErr =", str([_parametricFit2D_scientificStr(err) for err in parXYErr[1]])\
+                         .replace("'", ""))
     #plot
     fig = plt.figure(figsize=(12, 18))
     matplotlib.rc("xtick", labelsize=16)
@@ -672,13 +684,14 @@ def example_parametricFit2D():
     gs = gridspec.GridSpec(2, 1)
     ax = []
     for i in range (gs.nrows*gs.ncols):
-        ax.append(fig.add_subplot(gs[i]));
+        ax.append(fig.add_subplot(gs[i]))
+        ax[-1].ticklabel_format(style="sci", scilimits=(-2, 2), axis="both")
     fig.subplots_adjust(top=0.95, bottom=0.05, left=0.095, right=0.98)
 
     cmap = truncateColorMap(plt.get_cmap("jet"), 0.0, 0.92)
     hist = ax[0].hist2d(*data, bins=int(binN/10.0), cmin=1, cmap=cmap, range=rangeXY)
     cb = fig.colorbar(hist[3], ax=ax[0]).mappable
-    ax[0].plot(fitFuncX, fitFuncY, linewidth=3, color="red") 
+    ax[0].plot(fitCurveX, fitCurveY, linewidth=3, color="red") 
     ax[0].set_title("Parametric Fitting the Curve", fontsize=28, y=1.03)
     ax[0].set_xlabel("x", fontsize=20)
     ax[0].set_ylabel("y", fontsize=20)
@@ -689,10 +702,10 @@ def example_parametricFit2D():
     errCurveN = 1000
     print("Sampling the fit curve from the parameter standard errors...")
     for i in tqdm(range(errCurveN)):
-        parXOptSamp = [rd.gauss(par, max(0, parXErr[nx])) for nx, par in enumerate(parXOpt)]
-        parYOptSamp = [rd.gauss(par, max(0, parYErr[ny])) for ny, par in enumerate(parYOpt)]
-        sampFitFuncX = funcX(fitT, parXOptSamp)
-        sampFitFuncY = funcY(fitT, parYOptSamp) 
+        parXOptSamp = [rd.gauss(par, max(0, parXYErr[0][nx])) for nx, par in enumerate(parXYOpt[0])]
+        parYOptSamp = [rd.gauss(par, max(0, parXYErr[1][ny])) for ny, par in enumerate(parXYOpt[1])]
+        sampFitFuncX = funcXY[0](fitT, parXOptSamp)
+        sampFitFuncY = funcXY[1](fitT, parYOptSamp) 
         plotFitted = ax[1].plot(sampFitFuncX, sampFitFuncY, linewidth=3, color="red", alpha=0.5)[0]
     plotGiven = ax[1].plot(curveX, curveY, linewidth=5, color="blue")[0]
     ax[1].set_title("Parametric Curve: Given vs Fitted (sampled from fit err)", fontsize=24, y=1.03)
@@ -711,7 +724,7 @@ def example_parametricFit2D():
 
 if __name__ == "__main__":
     print("###################################################################################Begin\n")
-    #printSavedProgress("zSavedProgress/savedProgressDS[0].pickle")
+    #printSavedProgress("/".join( (_PARAMETRICFIT2D_SAVEDIRNAME, "/savedProgressDS[0].pickle") ))
     example_parametricFit2D()
     print("\n###################################################################################End\n")
 
