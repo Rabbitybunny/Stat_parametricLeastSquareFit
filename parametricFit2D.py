@@ -317,7 +317,7 @@ def paraSquareResidualAve(parXY, funcXY, dataXY, normXYRatio=[1.0, 1.0], paraRan
                 print("The degenerate pairs in parametric variable are:")
                 for localPair in localOpt_tList: print(" ", localPair)
                 print("")
-            if len(localOpt_tList) > len(dataXY[0])/1000: _parametricFit2_ContinueYesNo()
+            if len(localOpt_tList) > len(dataXY[0])/1000.0: _parametricFit2_ContinueYesNo()
         else:
             if verbosity >= 2: print("Input paraRange has no local minima degeneracies. Good to go\n")
     #finding parametric variable t on the curve that has the shortest distance to the point
@@ -652,7 +652,7 @@ def example_parametricFit2D():
     #initY = [-0.3, 3.34015, 0.736364, -2.89015, 0.113636]
     initX = [2.3, 1.1233, -5.24659, -1.8233, 2.84659]
     initY = [-0.2, 3.71818, 1.06364, -3.21818, -0.363636]
-    downSampling=[  ["Opt",  100,   0,      None, None],\
+    downSampling=[  ["Opt",  1000,   0,      None, None],\
                   *[["Opt",  1000,   1000,   None, None]]*2,\
                     ["Opt",  np.inf, np.inf, None, None],\
                   *[["Boot", np.inf, 200,    None, None]]*30]
