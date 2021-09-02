@@ -101,7 +101,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
     pickleName = "/".join( (savePath, _PARAMETRICFIT2D_SAVEDIRNAME, "savedProgress.pickle") )
     downSamplingIterN, optIdx, bootIdx = -1, [], []
     parXBoot, parYBoot                 = [[] for _ in range(parXN)], [[] for _ in range(parYN)]
-    iterErr2s                          = []
+    iterParaRanges, iterErr2s          = [], []
     if readProgress == True:
         if os.path.isdir(savePath) is False:
             raise NotADirectoryError("paraLeastSquare: the directory for savePath does not exist:\n"+\
@@ -125,7 +125,8 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
             parHessErrCovMatrix = progressDict["parHessErrCovMatrix"].copy()
             parXBoot = progressDict["parXBoot"].copy()
             parYBoot = progressDict["parYBoot"].copy()
-            iterErr2s  = progressDict["iterErr2"].copy()
+            iterParaRanges = progressDict["iterParaRanges"].copy()
+            iterErr2s      = progressDict["iterErr2"].copy()
         except OSError or FileNotFoundError:
             pathlib.Path("/".join( (savePath, _PARAMETRICFIT2D_SAVEDIRNAME) )).mkdir(exist_ok=True)
             readProgress = False
@@ -204,14 +205,24 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
         if len(dataXforOpt) < (parXN + parYN):
             raise AssertionError("paraLeastSquare: the number of samples("+str(len(dataXforOpt))+") "+\
                                  "is fewer than the number of parameters("+str(parXN + parYN)+")")
+        #updating the paraRange
+        iterParaRanges.append(paraRange)
+        if len(iterParaRanges) > 1:
+            preParaRange = iterParaRanges[-2]
+            for paraIdx, localMiniCut in enumerate(preParaRange):
+                if (paraIdx != 0) and (paraIdx != len(preParaRange)-1):            
+                    localMiniDateXY  = getDataPtOfPara([parXforOpt, parYforOpt], funcXY, localMiniCut)
+                    localMiniPara, _ = getParaOfDataPt([parXforOpt, parYforOpt], funcXY,\
+                                                       localMiniDateXY, dataRangeXY, preParaRange)
+                    iterParaRanges[-1][paraIdx] = localMiniPara + 0.0
         #main optimization
         if sampStat[0] in ["Opt", "Boot"]: 
             iterErr2s.append([])
             res2Ave = lambda par : \
                 _paraSquareResidualAve([par[:parXN], par[parXN:]], funcXY, [dataXforOpt, dataYforOpt],\
-                                       dataRangeXY, paraRange=paraRange, ratioHeadTail=ratioHeadTail,\
-                                       verbosity=verbosity, iterErr2=iterErr2s[s],\
-                                       downSamp=[s, sampStat])
+                                       dataRangeXY, paraRange=iterParaRanges[-1],\
+                                       ratioHeadTail=ratioHeadTail, verbosity=verbosity,\
+                                       iterErr2=iterErr2s[s], downSamp=[s, sampStat])
             if sampStat[2] != 0:
                 paraFitResult = optimize.minimize(res2Ave, [*parXforOpt, *parYforOpt],\
                                                   method=optMethod, options={"maxiter":sampStat[2]},\
@@ -247,9 +258,10 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
                 iterErr2Err = []
                 res2 = lambda par : len(dataXforOpt)\
                    *_paraSquareResidualAve([par[:parXN],par[parXN:]],funcXY,[dataXforOpt,dataYforOpt],\
-                                           dataRangeXY, paraRange=paraRange, ratioHeadTail=[0.0, 0.0],\
+                                           dataRangeXY, paraRange=iterParaRanges[-1],\
+                                           ratioHeadTail=[0.0, 0.0], verbosity=verbosity,\
                                            iterErr2=iterErr2Err, downSamp=[s, sampStat],\
-                                           verbosity=verbosity, progressPlot=progressPlot)
+                                           progressPlot=progressPlot)
                 sigma2 = res2([*parXOpt, *parYOpt])/(len(dataXforOpt) - parXN - parYN)
                 iterErr2s.append([[0, sigma2, -1]])
 
@@ -316,8 +328,9 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
             progressDict["parErrCovMatrix"]     = parErrCovMatrix
             progressDict["parBootErrCovMatrix"] = parBootErrCovMatrix
             progressDict["parHessErrCovMatrix"] = parHessErrCovMatrix
-            progressDict["iterErr2"]   = [[iterErr2[-1]] for iterErr2 in iterErr2s[:-1]]
-            progressDict["iterErr2"]  += [iterErr2s[-1]]
+            progressDict["iterParaRanges"] = iterParaRanges
+            progressDict["iterErr2"]       = [[iterErr2[-1]] for iterErr2 in iterErr2s[:-1]]
+            progressDict["iterErr2"]      += [iterErr2s[-1]]
             with open(pickleName, "wb") as handle:
                 pickle.dump(progressDict, handle, protocol=pickle.HIGHEST_PROTOCOL)
             pickleDSName = pickleName.replace(".pickle", "DS["+str(s)+"].pickle")
@@ -331,14 +344,20 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
                 np.set_printoptions(precision=2, linewidth=200)
                 print("Lastest progress entry:")
                 for key in progressDict:
-                    if key != "iterErr2": 
+                    if key == "iterErr2": 
+                        print(" ", key+":", end=" ")
+                        if verbosity >= 3: 
+                            iterErr2List = progressDict[key][:-1].copy()
+                            iterErr2List.append(progressDict[key][-1][-1])
+                            print(iterErr2List)
+                        else:
+                            print(progressDict[key][-1][-1])
+                    else:
                         if np.array(progressDict[key]).ndim <= 1:
                             print(" ", key+":", np.array(progressDict[key]))
                         else:
                             print(" ", key+":\n   ",\
                                   str(np.array(progressDict[key])).replace("\n", "\n    "))
-                    else:                 
-                        print(" ", key+":", progressDict[key][-1][-1])
                 np.set_printoptions(precision=8, linewidth=75)  #default
         if (verbosity >= 1) and ((len(downSampling) > 0)):
             print("-----------------------------------------------downSampling["+str(s)+"] Complete\n")
@@ -346,8 +365,14 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
         print("-------------------------------------------------------------Parametric Fit Complete\n")
     res2AveVal = iterErr2s[-1][-1][1]
     return [parXOpt, parYOpt], [parXErr, parYErr, parErrCovMatrix], res2AveVal
-def getParaOfDataPt(funcXY, dataPtXY, dataRangeXY, paraRange, iterCounter=[]):
-    distSquare = lambda t : _paraSquareDist(t, funcXY, dataPtXY, dataRangeXY, iterCounter)
+def getDataPtOfPara(parXY, funcXY, paraVal):
+    lambdaX = lambda t : funcXY[0](t, parXY[0])
+    lambdaY = lambda t : funcXY[1](t, parXY[1])
+    return [lambdaX(paraVal), lambdaY(paraVal)]
+def getParaOfDataPt(parXY, funcXY, dataPtXY, dataRangeXY, paraRange, iterCounter=[]):
+    lambdaX = lambda t : funcXY[0](t, parXY[0])
+    lambdaY = lambda t : funcXY[1](t, parXY[1])
+    distSquare = lambda t : _paraSquareDist(t, [lambdaX, lambdaY], dataPtXY, dataRangeXY, iterCounter)
     opt_t = paraRange[0]
     for paraIdx in range(len(paraRange)-1):
         bounds = (paraRange[paraIdx], paraRange[paraIdx+1])
@@ -416,6 +441,8 @@ def printSavedProgress(fullPicklePath, verbosity=2):
         print("  optMethod     =", progressDict["optMethod"])
         print("  ratioHeadTail =", progressDict["ratioHeadTail"])
         print("  randSeed      =", progressDict["randSeed"])
+#######################################################################################################
+#helper functions
 def _paraSquareResidualAve(parXY, funcXY, dataXY, dataRangeXY, paraRange=[-1.0, 1.0],\
                            ratioHeadTail=[0.0, 0.0], iterErr2=None, downSamp=None,\
                            verbosity=1, progressPlot=True, savePath="."):
@@ -443,7 +470,7 @@ def _paraSquareResidualAve(parXY, funcXY, dataXY, dataRangeXY, paraRange=[-1.0, 
         if verbosity >= 2: print("Checking local minima inside each section of paraRange:", paraRange)
         localOpt_tList = []
         for x, y in tqdm(np.array(dataXY).T, disable=(verbosity < 3)):
-            distSquare = lambda t : _paraSquareDist(t, [lambdaX,lambdaY], [x,y], dataRangeXY)
+            distSquare = lambda t : _paraSquareDist(t, [lambdaX, lambdaY], [x, y], dataRangeXY)
             for paraIdx in range(len(paraRange)-1):
                 bounds = (paraRange[paraIdx], paraRange[paraIdx+1])
                 shgoResult = optimize.shgo(distSquare, [bounds], n=64, iters=3,sampling_method="sobol")
@@ -474,7 +501,7 @@ def _paraSquareResidualAve(parXY, funcXY, dataXY, dataRangeXY, paraRange=[-1.0, 
     #finding parametric variable t on the curve that has the shortest distance to the point
     (res2Sum, opt_ts, fullStat) = (0, [], [])
     for x, y in tqdm(np.array(dataXY).T, disable=(verbosity < 3)):
-        opt_t, resSquare = getParaOfDataPt([lambdaX, lambdaY], [x, y], dataRangeXY, paraRange)
+        opt_t, resSquare = getParaOfDataPt(parXY, funcXY, [x, y], dataRangeXY, paraRange)
         res2Sum += resSquare
         opt_ts.append(opt_t)
         fullStat.append([x, y, opt_t, lambdaX(opt_t), lambdaY(opt_t), resSquare])
@@ -511,14 +538,12 @@ def _paraSquareResidualAve(parXY, funcXY, dataXY, dataRangeXY, paraRange=[-1.0, 
         print("  head_tail normalized square error =", _parametricFit2D_scientificStr(err2HeadTail,10))
         print("")
     return res2Ave + err2HeadTail
-#######################################################################################################
-#helper functions
-def _paraSquareDist(t, funcXY, dataPtXY, dataRangeXY, iterCounter=[]):
+def _paraSquareDist(t, lambdaXY, dataPtXY, dataRangeXY, iterCounter=[]):
     if iterCounter != []: iterCounter[0] += 1
     normXYRatio = [1.0/(dataRangeXY[0][1]-dataRangeXY[0][0]),\
                    1.0/(dataRangeXY[1][1]-dataRangeXY[1][0])]
-    return pow(normXYRatio[0]*(funcXY[0](t) - dataPtXY[0]), 2) +\
-           pow(normXYRatio[1]*(funcXY[1](t) - dataPtXY[1]), 2)
+    return pow(normXYRatio[0]*(lambdaXY[0](t) - dataPtXY[0]), 2) +\
+           pow(normXYRatio[1]*(lambdaXY[1](t) - dataPtXY[1]), 2)
 def _parametricFit2D_paraRangePlot(localOpt_tList, paraRange, dataN, verbosity=1, savePath="."):
     pathlib.Path("/".join( (savePath, _PARAMETRICFIT2D_SAVEDIRNAME) )).mkdir(exist_ok=True)
     figName = "/".join( (savePath, _PARAMETRICFIT2D_SAVEDIRNAME, "paraRangeLocalMinDegen.png") )
@@ -753,7 +778,6 @@ def example_parametricFit2D():
                                                      randSeed=randSeed, downSampling=downSampling,\
                                                      progressPlot=savePlot, saveProgress=saveProg,\
                                                      readProgress=readProg)
-
     '''
     savePath = str(pathlib.Path().absolute()) 
     pickleName = "/".join( (savePath, _PARAMETRICFIT2D_SAVEDIRNAME, "savedProgress.pickle") )
