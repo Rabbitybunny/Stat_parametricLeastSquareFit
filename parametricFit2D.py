@@ -770,7 +770,7 @@ def example_parametricFit2D():
     downSampling=[  ["Opt",  1000,   0,      None, None],\
                   *[["Opt",  1000,   1000,   None, None]]*2,\
                     ["Opt",  np.inf, np.inf, None, None],\
-                  *[["Boot", np.inf, 200,    None, None]]*30]
+                  *[["Boot", 1000,   np.inf,    None, None]]*30]
     #downSampling = getInstantPlotDownSampling(downSampling=downSampling); saveProg=False 
 
     parXYOpt, parXYErr, res2AveVal = paraLeastSquare([initX, initY], funcXY, data, rangeXY,\
@@ -791,20 +791,6 @@ def example_parametricFit2D():
     parXYErr[2] = progressDict["parErrCovMatrix"] 
     res2AveVal  = progressDict["iterErr2"][-1][-1][1] 
     '''
-    
-    #################################
-    '''
-    progressDict["parErrCovMatrix"]=np.cov(np.array(progressDict["parXBoot"]+progressDict["parYBoot"]))
-    #print(progressDict["parXBoot"]+progressDict["parYBoot"]) 
-    print([str.format("{0:.3e}", val*val)\
-           for val in (progressDict["parXErr"]+progressDict["parYErr"])], "\n")
-    for i in range(len(progressDict["parErrCovMatrix"])): 
-        print([str.format("{0:.3e}", val) for val in [progressDict["parErrCovMatrix"][i][i]]])
-    parXYErr[2] = progressDict["parErrCovMatrix"]
-    '''
-    ################################
-
-
 
     fitT = np.linspace(paraRange[0], paraRange[-1], binN+1)[:-1]
     fitCurveX = funcXY[0](fitT, parXYOpt[0])
@@ -841,15 +827,15 @@ def example_parametricFit2D():
     ax[0].set_xlim(*rangeXY[0])
     ax[0].set_ylim(*rangeXY[1])
 
-    errCurveN = 1000
+    errCurveN = 100
     print("Sampling the fit curve from the parameter standard errors...", end="\r" )
     parXN, parYN = len(parXYOpt[0]), len(parXYOpt[1])
     parXYOptSamps = np.random.multivariate_normal(parXYOpt[0]+parXYOpt[1], parXYErr[2], size=errCurveN)
     for parXYOptSamp in parXYOptSamps:
         sampFitCurveX = funcXY[0](fitT, parXYOptSamp[:parXN])
         sampFitCurveY = funcXY[1](fitT, parXYOptSamp[parXN:]) 
-        plotFitted = ax[1].plot(sampFitCurveX, sampFitCurveY, linewidth=4, color="red", alpha=0.1)[0]
-    plotGiven = ax[1].plot(curveX, curveY, linewidth=5, color="blue")[0]
+        plotFitted = ax[1].plot(sampFitCurveX, sampFitCurveY, linewidth=3, color="red", alpha=0.1)[0]
+    plotGiven = ax[1].plot(curveX, curveY, linewidth=3, color="blue")[0]
     ax[1].set_title("Parametric Curve: Given vs Fitted (sampled from fit err)", fontsize=24, y=1.03)
     ax[1].set_xlabel("x", fontsize=20)
     ax[1].set_ylabel("y", fontsize=20)
