@@ -32,6 +32,8 @@ Moreover, the code could output the following plot if local minima are spotted w
 
 <img src="https://github.com/Rabbitybunny/Stat_parametricLeastSquareFit/blob/main/paraRangeLocalMinDegen_Display.png" width="600" height="450">
 
+The idea is that for points around (x,y)=(1, -1) of the example curve, the shortest distance can be on either to the "left-hand-side" or the "right-hand-side" of the point, which corresponds to the paramatric variable around -1 (blue data in the plot) and -0.3 (red data in the plot). The opimize.minimize cannot handle this degeneracy so easily and a global optimization is expansive and not always reliable to do on some many sample data points. So the solution in this code is to modify the paraRange parameter from [-1, 1] to [-1, -0.6, 1], and the code would then evaluate a minimum distance in both [-1, -0.6] and [-0.6, 1] partition and compare the results to determine the global minimal distance. For more complicated curve, finner partitions can also be placed in the similar regard.
+
 Future tasks: the bounds and constraints don't see to work for the general optimization method for scipy.optimize. Using language multiplier may be a solution.
 
 References:
