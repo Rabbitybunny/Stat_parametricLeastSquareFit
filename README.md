@@ -1,8 +1,48 @@
 # 2D Parametric Fit Using Least Square
 
-The program uses the least square method to fit a 2D histogram with a 2D parametric curve, i.e. a curve (x(t), y(t)) defined by a single parameter t. The distances used for the residual is the shorted distance from each data point to the curve. For this reason, the code requires applying an opimize.minimize (for finding the shortest distance) on top of another opimize.minimize (for finding the minimal residual sum of square); the fit requires significant processing power.
+| Function  | Description |
+| - | - |
+| `paraLeastSquare` | |
+| `getDataPtOfPara` | |
+| `getParaOfDataPt` | |
+| `getInstantPlotDownSampling` | |
+| `printSavedProgress` | |
+| `example_parametricFit2D` | |
 
-The fit function can be used by importing parametricFit2D.py. However, an example code runs on python3 with the following:
+| Function  | parameter | Description |
+| - | - | - |
+| `paraLeastSquare`  | `parXYinit`  | |
+| | `funcXY`  | |
+| | `dataXY` | |
+| | `dataRangeXY` | |
+| | `optMethod="Nelder-Mead"` | |
+| | `paraRange=[-1.0, 1.0]` | |
+| | `ratioHeadTail=[0.01, 0.01]` | |
+| | `randSeed=None` | |
+| | `downSampling="DEFAULT"` | |
+| | `verbosity=3` | |
+| | `progressPlot=False` | |
+| | `saveProgress=False` | |
+| | `readProgress=True` | |
+| | `savePath="."` | |
+| `getDataPtOfPara` | `parXY` | |
+| | `funcXY` | |
+| | `paraVal` | |
+| `getParaOfDataPt` | 'parXY' | |
+| | 'funcXY' | |
+| | 'dataPtXY' | |
+| | 'dataRangeXY' | |
+| | 'paraRange' | |
+| | 'iterCounter=[]' | |
+| `getInstantPlotDownSampling` | 'downSampling=None' | |
+| | 'savePath="."' | |
+| `printSavedProgress` | 'fullPicklePath' | |
+| | 'verbosity=2' | |
+
+
+The program uses the least square method to fit a 2D histogram with a 2D parametric curve, i.e. a curve (x(t), y(t)) defined by a single parameter t. The distances used for the residual is the shorted distance from each data point to the curve. For this reason, the code requires applying an `opimize.minimize` (for finding the shortest distance) on top of another `opimize.minimize` (for finding the minimal residual sum of square); the fit requires significant processing power.
+
+The fit function can be used by importing `parametricFit2D.py`. However, an example code runs on python3 with the following:
 
     pip3 install scipy
     pip3 install tqdm
@@ -15,7 +55,7 @@ The code outputs the following images:
 - Middle: the given curve (blue) versus 100 fitted curves (red) sampled from the fit parameters and their standard errors.
 - Bottom: similar to the middle plot, but the 100 fitted curves (red) are sampled from the fit parameters and their covariant matrix.
 - Note: by default, the range of t is [-1, 1]. Having a 0 at the range boundary would make polynomial fit depend too much on the constant parameter.
-- Note: the success of the fit depends greatly on the initial values given to the parameters. A mathamtica solver systemOfLinearEquation.nb is provided to find these values more easily, whose required inputs are the approximate points on the curve. These approximate points are best taken uniformly across the curve. 
+- Note: the success of the fit depends greatly on the initial values given to the parameters. A mathamtica solver `systemOfLinearEquation.nb` is provided to find these values more easily, whose required inputs are the approximate points on the curve. These approximate points are best taken uniformly across the curve. 
 - Note: however that the paramatric fit does NOT give a constant speed curve, which would be unnecessarily difficult for polynomials.
 
 Other then the plot from the example code, the main code also output progress plots and save the progress in .pickle file such that the fit can be stopped and continued:
@@ -32,7 +72,7 @@ Moreover, the code could output the following plot if local minima are spotted w
 
 <img src="https://github.com/Rabbitybunny/Stat_parametricLeastSquareFit/blob/main/paraRangeLocalMinDegen_Display.png" width="600" height="450">
 
-The idea is that for points around (x,y)=(1, -1) of the example curve, the shortest distance can be on either to the "left-hand-side" or the "right-hand-side" of the point, which corresponds to the paramatric variable around -1 (blue data in the plot) and -0.3 (red data in the plot). The opimize.minimize cannot handle this degeneracy so easily and a global optimization is expansive and not always reliable to do on some many sample data points. So the solution in this code is to modify the paraRange parameter from [-1, 1] to [-1, -0.6, 1], and the code would then evaluate a minimum distance in both [-1, -0.6] and [-0.6, 1] partition and compare the results to determine the global minimal distance. For more complicated curve, finner partitions can also be placed in the similar regard.
+The idea is that for points around (x,y)=(1, -1) of the example curve, the shortest distance can be on either to the "left-hand-side" or the "right-hand-side" of the point, which corresponds to the paramatric variable around -1 (blue data in the plot) and -0.3 (red data in the plot). The `opimize.minimize` cannot handle this degeneracy so easily and a global optimization is expansive and not always reliable to do on some many sample data points. So the solution in this code is to modify the `paraRange` parameter from [-1, 1] to [-1, -0.6, 1], and the code would then evaluate a minimum distance in both [-1, -0.6] and [-0.6, 1] partition and compare the results to determine the global minimal distance. For more complicated curve, finner partitions can also be placed in the similar regard.
 
 Future tasks: the bounds and constraints don't see to work for the general optimization method for scipy.optimize. Using language multiplier may be a solution.
 
