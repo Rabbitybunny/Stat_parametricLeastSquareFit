@@ -2,12 +2,14 @@
 
 | Function  | Output | Description |
 | - | - | - |
-| `paraLeastSquare` | `` | |
-| `getDataPtOfPara` | | |
-| `getParaOfDataPt` | | |
-| `getInstantPlotDownSampling` | | |
-| `printSavedProgress` | | |
-| `example_parametricFit2D` | | |
+| `paraLeastSquare` | `parXYOpt`:[list,list], `parXYErr`:[list,list,matrix], `res2AveVal`:float | least square fit to a 2D-histogram with a parametric function defined on both of the [x-axis, y-axis]. The `parXYOpt` is the optimal results of the fit parameter on the [x-axis, y-axis]. The `parXYErr` is the standard errors of the  optimized fit parameters, while the matrix is the covariant matrix (standard errors with correlations). The `res2AveVal` is the average residual square that is used for the least square optimization |
+| `getDataPtOfPara` | `ptXY`:[float,float] | get the point `ptXY` on the [x-axis, y-axis] on the parametric curve given a parametric value |
+| `getParaOfDataPt` | `paraVal`:float | get the parametric value `paraVal` that correspond to a point on the parametric curve that is closest to a given data point |
+| `getInstantPlotDownSampling` | `downSampling` | generate a `downSampling` parameter for `paraLeastSquare` that halt the optimization but give the latest optimization results of the optimization process. See `example_parametricFit2D` for the usage |
+| `printSavedProgress` | | print out the keys and values of a pickle file saved by `paraLeastSquare` |
+| `example_parametricFit2D` | | example code that runs the `paraLeastSquare`. It produces all the figures on this page |
+
+## Function parameters:
 
 | Function  | parameter | Description |
 | - | - | - |
@@ -39,8 +41,7 @@
 | `printSavedProgress` | 'fullPicklePath' | path for the pickle file saved by `paraLeastSquare` to be print out by this function |
 | | 'verbosity=2' | verbosity for the output message, up to 2 |
 
-
-
+## Example:
 
 The program uses the least square method to fit a 2D histogram with a 2D parametric curve, i.e. a curve (x(t), y(t)) defined by a single parameter t. The distances used for the residual is the shorted distance from each data point to the curve. For this reason, the code requires applying a `scipy.opimize.minimize` (for finding the shortest distance) on top of another `scipy.opimize.minimize` (for finding the minimal residual sum of square); the fit requires significant processing power.
 
@@ -60,6 +61,8 @@ The code outputs the following images:
 - Note: the success of the fit depends greatly on the initial values given to the parameters. A mathamtica solver `systemOfLinearEquation.nb` is provided to find these values more easily, whose required inputs are the approximate points on the curve. These approximate points are best taken uniformly across the curve. 
 - Note: however that the paramatric fit does NOT give a constant speed curve, which would be unnecessarily difficult for polynomials.
 
+------------------------------------------------------------------
+
 Other then the plot from the example code, the main code also output progress plots and save the progress in .pickle file such that the fit can be stopped and continued:
 
 <img src="https://github.com/Rabbitybunny/Stat_parametricLeastSquareFit/blob/main/progressPlot_Boot_Display.png" width="600" height="450">
@@ -70,6 +73,8 @@ Other then the plot from the example code, the main code also output progress pl
 - Note: to increase the fit speed, each data point is actually "down-sampled" to 1000 data points from the original 20,000 data with replacement. Each "down-sampling" point shows as a blue dot in the plot.
 - Note: the orange points are the bootstrapped "down-sampling" to get the standard error for the parameters. As shown in the plot, these bootstrap samples are collected when the "normalized averaged residual sum of square" reaches more or less the equilibium. On critical points to point out is that these bootstrap standard error does NOT take into account of how good your models are in fitting the curve. The code also has an option to evaluate the standard error based on the inverse of the Hessian function. Nonetheless, the Hessian can only be numerically calculated and the resulting standard errors are not stable.
 
+------------------------------------------------------------------
+
 Moreover, the code could output the following plot if local minima are spotted when applying opimize.minimize to find the shortest distance to the curve for some point:
 
 <img src="https://github.com/Rabbitybunny/Stat_parametricLeastSquareFit/blob/main/paraRangeLocalMinDegen_Display.png" width="600" height="450">
@@ -78,5 +83,7 @@ The idea is that for points around (x,y)=(1, -1) of the example curve, the short
 
 Future tasks: the bounds and constraints don't see to work for the general optimization method for scipy.optimize. Using language multiplier may be a solution.
 
-References:
-- stats.stackexchange question 285023 (<a href="https://stats.stackexchange.com/questions/285023/compute-standard-errors-of-nonlinear-regression-parameters-with-maximum-likeliho">StackExchange</a>)
+## References:
+- K.K. Gan, Ohio State University, lecture on least chi-square fit (2004) (<a href="https://www.asc.ohio-state.edu/gan.1/teaching/spring04/Chapter6.pdf">PPT</a>)
+- N. Börlin, Umeå University, lecture on nonlinear optimization (2007) (<a href="https://stats.stackexchange.com/questions/285023/compute-standard-errors-of-nonlinear-regression-parameters-with-maximum-likeliho">StackExchange</a>, <a href="https://www8.cs.umu.se/kurser/5DA001/HT07/lectures/lsq-handouts.pdf">PPT</a>)
+- stats.stackexchange: bootstrap standard error (<a href="https://stats.stackexchange.com/questions/272098/bootstrap-estimate-for-standard-error-in-linear-regression">StackExchange</a>)
