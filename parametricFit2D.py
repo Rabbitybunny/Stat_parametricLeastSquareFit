@@ -13,49 +13,7 @@ from tqdm import tqdm
 import pickle
 
 
-
-
-#######################################################################################################
-##########################################   INPUT   ##################################################
-#downSampling[i] = [operation type ("Opt": optimization, 
-#                                   "Boot": error from bootstrap, recommending 30 iterations,
-#                                   "Hess": error from inverse Hessian using numdifftools),
-#                   sampling size with replacement, 
-#                   maxiter for least square optimization,
-#                   bounds, constraints]
-#bounds/constraints only for optMethod = "COBYLA", "SLSQP", "trust-constr":
-#  https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html
-#parXYinit     = [[initial parameter values for x-axis], [initial parameter values for y-axis]]
-#funcXY        = [parametric fit function for x-axis,    parametric fit function for y-axis]
-#dataXY        = [[data values for x-axis],              [data values for y-axis]]
-#dataRangeXY   = [[data range for x-axis],               [data range for y-axis]]
-#  Data that fall outside the range will be removed
-#  The range also goes into normalizing the residual square
-#optMethod     = optimization method for the least square (minimizing the the residual square)
-#paraRange     = range allowed for the parametric variable t, whose fit function is (x(t), y(t))
-#ratioHeadTail = adding weights to the the residual square to maintain paraRange
-#randSeed      = random seed for downSampling
-#downSampling  = (see above)
-#verbosity:    controlling the amount of output messages, up to 4
-#progressPlot: saving plots in savePath at each downSampling iteration
-#saveProgress: saving pickle files in savePath at each downSampling iteration
-#readProgress: reading from pickle files (if exist) to continue the optimization
-#savePath    : the directory where the files are saved to
-##########################################   OUTPUT   #################################################
-#parXYOpt, parXYErr, res2AveVal
-#parXYOpt   = [[optimized parameter values for x-axis], [optimized parameter values for y-axis]]
-#parXYErr   = [[parameter standard errors for x-axis],  [parameter standard errors for y-axis],
-#              [[parameter estimate covariant matrix for xy-axis]]]
-#res2AveVal = average residual square of the optimized result 
-
 _PARAMETRICFIT2D_SAVEDIRNAME = "zSavedProgress"
-#keys of the dictionary saved in the progress pickle files:
-#   downSampling, parXYinit, funcXY, dataRangeXY, paraRange, optMethod, ratioHeadTail, randseed,
-#   downSamplingIterN, optimizationN, bootstrapN, optIdx, bootIdx, 
-#   parXOpt, parXErr, parXBoot, parXBootErr, parXHessErr,
-#   parYOpt, parYErr, parYBoot, parYBootErr, parYHessErr,
-#   parErrCovMatrix, parBootErrCovMatrix, parHessErrCovMatrix, iterErr2
-
 def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Mead",\
                     paraRange=[-1.0, 1.0], ratioHeadTail=[0.01, 0.01],\
                     randSeed=None, downSampling="DEFAULT", verbosity=3,\
@@ -63,7 +21,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
                     savePath=str(pathlib.Path().absolute())):
     #drop out-of-range data
     dataXInput = []
-    dataYInput = []
+    dataYInput = []`paraRange[0]` being closed to the head
     for x, y in np.array(dataXY).T:
         if (dataRangeXY[0][0] < x) and (x < dataRangeXY[0][1]) and\
            (dataRangeXY[1][0] < y) and (y < dataRangeXY[1][1]):
@@ -711,9 +669,6 @@ def _parametricFit2D_scientificStr(val, sigFig=3):
 
 
 
-
-
-
 #######################################################################################################
 #######################################################################################################
 #######################################################################################################
@@ -725,11 +680,11 @@ def example_parametricFit2D():
         x = 2*math.sin(t + math.pi/5) + 0.5*t
         y = 1.2*math.cos(t + math.pi/5) + 0.8*math.sin(t + math.pi/5)
         return x, y
-    def polyFunc(x, coefs):
+    def polyFunc(t, coefs):
         if np.isscalar(coefs) == True:
             raise TypeError("polyFunc: coefs must be a 1D array/list")
         result = 0
-        for i, c in enumerate(coefs): result += c*np.power(x, i)
+        for i, c in enumerate(coefs): result += c*np.power(t, i)
         return result
     def truncateColorMap(cmap, lowR, highR):
         cmapNew = matplotlib.colors.LinearSegmentedColormap.from_list(\
