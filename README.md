@@ -1,25 +1,25 @@
 # 2D Parametric Fit Using Least Square
 
-| Function  | Description |
-| - | - |
-| `paraLeastSquare` | |
-| `getDataPtOfPara` | |
-| `getParaOfDataPt` | |
-| `getInstantPlotDownSampling` | |
-| `printSavedProgress` | |
-| `example_parametricFit2D` | |
+| Function  | Output | Description |
+| - | - | - |
+| `paraLeastSquare` | `` | |
+| `getDataPtOfPara` | | |
+| `getParaOfDataPt` | | |
+| `getInstantPlotDownSampling` | | |
+| `printSavedProgress` | | |
+| `example_parametricFit2D` | | |
 
 | Function  | parameter | Description |
 | - | - | - |
-| `paraLeastSquare`  | `parXYinit`  | |
-| | `funcXY`  | |
-| | `dataXY` | |
-| | `dataRangeXY` | |
-| | `optMethod="Nelder-Mead"` | |
-| | `paraRange=[-1.0, 1.0]` | |
-| | `ratioHeadTail=[0.01, 0.01]` | |
-| | `randSeed=None` | |
-| | `downSampling="DEFAULT"` | |
+| `paraLeastSquare`  | `parXYinit`: [list,list] | initial parameter values for the fit functions on the <br/> [x-axis, y-axis]|
+| | `funcXY`: [def,def] | fit functions in format of `def func(t, par_list):` on the <br/> [x-axis, y-axis] |
+| | `dataXY`: [list,list] | input data on the [x-axis, y-axis]; each list has a length of N samples and the order of the two list must match |
+| | `dataRangeXY`: [list,list] | each 2D-list is a range placed on the [x-axis, y-axis]. Data pair outside the range will be ignored. The ranges are also used to "normalize" residual square in case data have values on the two axis differ by several orders of magnitude |
+| | `optMethod`<br/>`="Nelder-Mead"` | fit method for `scipy.optimize.minimize` used in the code |
+| | `paraRange=[-1.0,1.0]` | range of the parametric variable. If the length of the list is greater than 2, then partitions would be made to break local minimum degeneracy (see the decription of the 3rd figure) |
+| | `ratioHeadTail`<br/>`=[0.01,0.01]` | adding weights to the the residual square to maintain `paraRange[0]` being closed to the head of the curve and `paraRange[-1]` to the tail |
+| | `randSeed=None` | random seed used for bootstraping |
+| | `downSampling`<br/>`="DEFAULT"` | the parameter is a list of lists that have the following format: <br/>[operation-type, sampling-size, maxiter, bounds, constraints]. There are 3 operation-types, "Opt" for optimization, "Boot" for bootstraping, and "Hess" for inverse Hessian error. The sampling-size refined to resampling from the existing data with replacement. The maxiter is the maximum iteration as am input for `scipy.opimize.minimize`. The bounds and constraints are also inputs for `scipy.opimize.minimize`, but they work only for certain optimization methods (<a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html">Scipy doc</a>). The default value is `downSampling = [`<br/> `["Opt",  1000,   0, None, None],`<br/>`*[["Opt", 1000, 1000, None, None]]*2`,<br/>`["Opt", np.inf, np.inf, None, None]`,<br/>`*[["Boot", np.inf, 200, None, None]]*30]`,<br/> where the first line is for plotting out the curve using the initial parameters, the second line is for quickly converging to near optimimum results, the third line is the main optimization, and the forth line is for bootstraping to get the standard error (and covariant matrx) for the fit parameters.|
 | | `verbosity=3` | |
 | | `progressPlot=False` | |
 | | `saveProgress=False` | |
@@ -40,7 +40,9 @@
 | | 'verbosity=2' | |
 
 
-The program uses the least square method to fit a 2D histogram with a 2D parametric curve, i.e. a curve (x(t), y(t)) defined by a single parameter t. The distances used for the residual is the shorted distance from each data point to the curve. For this reason, the code requires applying an `opimize.minimize` (for finding the shortest distance) on top of another `opimize.minimize` (for finding the minimal residual sum of square); the fit requires significant processing power.
+
+
+The program uses the least square method to fit a 2D histogram with a 2D parametric curve, i.e. a curve (x(t), y(t)) defined by a single parameter t. The distances used for the residual is the shorted distance from each data point to the curve. For this reason, the code requires applying a `scipy.opimize.minimize` (for finding the shortest distance) on top of another `scipy.opimize.minimize` (for finding the minimal residual sum of square); the fit requires significant processing power.
 
 The fit function can be used by importing `parametricFit2D.py`. However, an example code runs on python3 with the following:
 
