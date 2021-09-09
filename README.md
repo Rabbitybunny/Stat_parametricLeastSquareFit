@@ -189,7 +189,7 @@ which includes the following code:
 
 The code outputs the following images:
 
-<img src="https://github.com/SphericalCowww/Stat_parametricLeastSquareFit/blob/main/paraFitCurve2D_Display.png" width="600" height="1350">
+<img src="https://github.com/SphericalCowww/Stat_parametricLeastSquareFit/blob/main/paraFitCurve2D_Display.png" width="400" height="900">
 
 - Top: the 20,000 data points comes from the gaussian broaden given curve (blue curve on the bottom plot). The red curve is then fitted using a 6th order polynomial on both x(t) and y(t).
 - Middle: the given curve (blue) versus 100 fitted curves (red) sampled from the fit parameters and their standard errors.
@@ -202,7 +202,7 @@ The code outputs the following images:
 
 Other then the plot from the example code, the main code also output progress plots and save the progress in .pickle file such that the fit can be stopped and continued:
 
-<img src="https://github.com/SphericalCowww/Stat_parametricLeastSquareFit/blob/main/progressPlot_Boot_Display.png" width="600" height="450">
+<img src="https://github.com/SphericalCowww/Stat_parametricLeastSquareFit/blob/main/progressPlot_Boot_Display.png" width="400" height="300">
 
 - The plot shows the "normalized averaged residual sum of square" as the optimization iteration increases. The smallest value is labeled.
 - Note: the distance residual is normalized by the given range of x and y to give their distances comparative weights
@@ -214,7 +214,7 @@ Other then the plot from the example code, the main code also output progress pl
 
 Moreover, the code could output the following plot if local minima are spotted when applying opimize.minimize to find the shortest distance to the curve for some point:
 
-<img src="https://github.com/SphericalCowww/Stat_parametricLeastSquareFit/blob/main/paraRangeLocalMinDegen_Display.png" width="600" height="450">
+<img src="https://github.com/SphericalCowww/Stat_parametricLeastSquareFit/blob/main/paraRangeLocalMinDegen_Display.png" width="400" height="300">
 
 The idea is that for points around (x,y)=(1, -1) of the example curve, the shortest distance can be on either to the "left-hand-side" or the "right-hand-side" of the point, which corresponds to the paramatric variable around -1 (blue data in the plot) and -0.3 (red data in the plot). The `opimize.minimize` cannot handle this degeneracy so easily and a global optimization is expansive and not always reliable to do on some many sample data points. So the solution in this code is to modify the `paraRange` parameter from [-1, 1] to [-1, -0.6, 1], and the code would then evaluate a minimum distance in both [-1, -0.6] and [-0.6, 1] partition and compare the results to determine the global minimal distance. For more complicated curve, finner partitions can also be placed in the similar regard.
 
