@@ -20,8 +20,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
                     progressPlot=False, saveProgress=False, readProgress=True,\
                     savePath=str(pathlib.Path().absolute())):
     #drop out-of-range data
-    dataXInput = []
-    dataYInput = []`paraRange[0]` being closed to the head
+    dataXInput, dataYInput = [], []
     for x, y in np.array(dataXY).T:
         if (dataRangeXY[0][0] < x) and (x < dataRangeXY[0][1]) and\
            (dataRangeXY[1][0] < y) and (y < dataRangeXY[1][1]):
@@ -36,10 +35,10 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
         downSampling = [["Opt",  np.inf, np.inf, None, None],\
                         ["Hess", np.inf, np.inf, None, None]]
     elif downSampling == "DEFAULT":
-        downSampling=[  ["Opt",  1000,   0,      None, None],\
+        downSampling=[  ["Opt",  np.inf, 0,      None, None],\
                       *[["Opt",  1000,   1000,   None, None]]*2,\
                         ["Opt",  np.inf, np.inf, None, None],\
-                      *[["Boot", np.inf, 200,    None, None]]*30]
+                      *[["Boot", 1000,   np.inf, None, None]]*30]
     for s, sampStat in enumerate(downSampling):
         if sampStat[0] not in ["Opt", "Boot", "Hess"]:
             raise ValueError("paraLeastSquare: the options are "+\
@@ -675,24 +674,13 @@ def _parametricFit2D_scientificStr(val, sigFig=3):
 #######################################################################################################
 #######################################################################################################
 def example_parametricFit2D():
-    paraRangeOrig = [-math.pi/4, 3*math.pi/2]
+    ###given 2D distribution
     def example_curve(t):
         x = 2*math.sin(t + math.pi/5) + 0.5*t
         y = 1.2*math.cos(t + math.pi/5) + 0.8*math.sin(t + math.pi/5)
         return x, y
-    def polyFunc(t, coefs):
-        if np.isscalar(coefs) == True:
-            raise TypeError("polyFunc: coefs must be a 1D array/list")
-        result = 0
-        for i, c in enumerate(coefs): result += c*np.power(t, i)
-        return result
-    def truncateColorMap(cmap, lowR, highR):
-        cmapNew = matplotlib.colors.LinearSegmentedColormap.from_list(\
-                  "trunc({n}, {l:.2f}, {h:.2f})".format(n=cmap.name, l=lowR, h=highR),\
-                  cmap(np.linspace(lowR, highR, 1000)))
-        return cmapNew
 
-    #sample setup
+    paraRangeOrig = [-math.pi/4, 3*math.pi/2]
     binN    = 1000
     sampleN = 3000
     rd.seed(1)
@@ -704,15 +692,21 @@ def example_parametricFit2D():
     for i in range(sampleN):
         paraVal = rd.uniform(*paraRangeOrig)
         if paraVal > (paraRangeOrig[1] - (paraRangeOrig[1]-paraRangeOrig[0])/10.0):
-            paraVal = rd.uniform(*paraRangeOrig)
+            if rd.uniform(0.0, 1.0) < 0.5:
+                paraVal = rd.uniform(*paraRangeOrig)
         x, y = example_curve(paraVal)
         x, y = rd.gauss(x, noiseSig), rd.gauss(y, noiseSig)
         data[0].append(x), data[1].append(y)
 
     ###################################################################################################
-    #parametric fit
-    ###heavily depends on initial conditions, can test with downSampling=[*[[100, 1]]*1] first
-    ###may need to get a systems of linear equation solver for both x&y to get a few points correct
+    ###parametric fit
+    def polyFunc(t, coefs):
+        if np.isscalar(coefs) == True:
+            raise TypeError("polyFunc: coefs must be a 1D array/list")
+        result = 0
+        for i, c in enumerate(coefs): result += c*np.power(t, i)
+        return result
+
     rangeXY       = [[-1.5, 3.5], [-2.2, 2.2]]
     paraRange     = [-1.0, -0.6, 1.0]
     ratioHeadTail = [0.01, 0.01]
@@ -722,10 +716,10 @@ def example_parametricFit2D():
     funcXY = [polyFunc, polyFunc]
     initX = [2.3, 1.1233, -5.24659, -1.8233, 2.84659]
     initY = [-0.2, 3.71818, 1.06364, -3.21818, -0.363636]
-    downSampling=[  ["Opt",  1000,   0,      None, None],\
+    downSampling=[  ["Opt",  np.inf, 0,      None, None],\
                   *[["Opt",  1000,   1000,   None, None]]*2,\
                     ["Opt",  np.inf, np.inf, None, None],\
-                  *[["Boot", 1000,   np.inf,    None, None]]*30]
+                  *[["Boot", 1000,   np.inf, None, None]]*30]
     #downSampling = getInstantPlotDownSampling(downSampling=downSampling); saveProg=False 
 
     parXYOpt, parXYErr, res2AveVal = paraLeastSquare([initX, initY], funcXY, data, rangeXY,\
@@ -733,6 +727,7 @@ def example_parametricFit2D():
                                                      randSeed=randSeed, downSampling=downSampling,\
                                                      progressPlot=savePlot, saveProgress=saveProg,\
                                                      readProgress=readProg)
+    ###option to read fit result from existing savedProgress.pickle
     '''
     savePath = str(pathlib.Path().absolute()) 
     pickleName = "/".join( (savePath, _PARAMETRICFIT2D_SAVEDIRNAME, "savedProgress.pickle") )
@@ -746,7 +741,9 @@ def example_parametricFit2D():
     parXYErr[2] = progressDict["parErrCovMatrix"] 
     res2AveVal  = progressDict["iterErr2"][-1][-1][1] 
     '''
+    ###################################################################################################    
 
+    ###output
     fitT = np.linspace(paraRange[0], paraRange[-1], binN+1)[:-1]
     fitCurveX = funcXY[0](fitT, parXYOpt[0])
     fitCurveY = funcXY[1](fitT, parXYOpt[1])
@@ -760,7 +757,13 @@ def example_parametricFit2D():
                          .replace("'", ""))
     print("  parYErr =", str([_parametricFit2D_scientificStr(err) for err in parXYErr[1]])\
                          .replace("'", ""))
-    #plot
+    ###plots
+    def truncateColorMap(cmap, lowR, highR):
+        cmapNew = matplotlib.colors.LinearSegmentedColormap.from_list(\
+                  "trunc({n}, {l:.2f}, {h:.2f})".format(n=cmap.name, l=lowR, h=highR),\
+                  cmap(np.linspace(lowR, highR, 1000)))
+        return cmapNew
+
     fig = plt.figure(figsize=(12, 18))
     matplotlib.rc("xtick", labelsize=16)
     matplotlib.rc("ytick", labelsize=16)
