@@ -785,16 +785,23 @@ def example_parametricFit2D():
     ax[0].set_xlim(*rangeXY[0])
     ax[0].set_ylim(*rangeXY[1])
 
+
+    covMatrix = parXYErr[2].copy()
+    #for i in range(len(parXYOpt[0]+parXYOpt[1])):
+    #    for j in range(len(parXYOpt[0]+parXYOpt[1])): 
+    #        if i != j: covMatrix[i][j] = 0
+    titleName = "Parametric Curve: Given vs Fitted (sampled from fit cov)"
+
     errCurveN = 100
     print("Sampling the fit curve from the parameter standard errors...", end="\r" )
     parXN, parYN = len(parXYOpt[0]), len(parXYOpt[1])
-    parXYOptSamps = np.random.multivariate_normal(parXYOpt[0]+parXYOpt[1], parXYErr[2], size=errCurveN)
+    parXYOptSamps = np.random.multivariate_normal(parXYOpt[0]+parXYOpt[1], covMatrix, size=errCurveN)
     for parXYOptSamp in parXYOptSamps:
         sampFitCurveX = funcXY[0](fitT, parXYOptSamp[:parXN])
         sampFitCurveY = funcXY[1](fitT, parXYOptSamp[parXN:]) 
         plotFitted = ax[1].plot(sampFitCurveX, sampFitCurveY, linewidth=3, color="red", alpha=0.1)[0]
     plotGiven = ax[1].plot(curveX, curveY, linewidth=3, color="blue")[0]
-    ax[1].set_title("Parametric Curve: Given vs Fitted (sampled from fit err)", fontsize=24, y=1.03)
+    ax[1].set_title(titleName, fontsize=24, y=1.03)
     ax[1].set_xlabel("x", fontsize=20)
     ax[1].set_ylabel("y", fontsize=20)
     ax[1].set_aspect("equal")
