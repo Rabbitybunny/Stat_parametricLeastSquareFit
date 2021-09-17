@@ -212,6 +212,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
                 parBootErrCovMatrix = np.cov(np.array(parXBoot+parYBoot)).tolist()
                 parXErr, parYErr, parErrCovMatrix = parXBootErr, parYBootErr, parBootErrCovMatrix
             elif sampStat[0] == "Hess":
+                #negative diagonal element to the covariant matrix due to noise, how to resolve???
                 iterErr2Err = []
                 res2 = lambda par : len(dataXforOpt)\
                    *_paraSquareResidualAve([par[:parXN],par[parXN:]],funcXY,[dataXforOpt,dataYforOpt],\
@@ -232,7 +233,7 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
                     parYHessErr[ny] = math.sqrt(sigma2*abs(hessInv[parXN+ny][parXN+ny]))/normXYRatio[1]
                 for col in range(parXN+parYN):
                     for row in range(parXN+parYN):
-                        parHessErrCovMatrix[col][row] = sigma2*abs(hessInv[col][row])
+                        parHessErrCovMatrix[col][row] = sigma2*hessInv[col][row]
                         if col < parXN: parHessErrCovMatrix[col][row] /= normXYRatio[0]
                         else:           parHessErrCovMatrix[col][row] /= normXYRatio[1]
                         if row < parXN: parHessErrCovMatrix[col][row] /= normXYRatio[0]
