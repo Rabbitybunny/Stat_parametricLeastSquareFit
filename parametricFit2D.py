@@ -238,7 +238,6 @@ def paraLeastSquare(parXYinit, funcXY, dataXY, dataRangeXY, optMethod="Nelder-Me
                         else:           parHessErrCovMatrix[col][row] /= normXYRatio[1]
                         if row < parXN: parHessErrCovMatrix[col][row] /= normXYRatio[0]
                         else:           parHessErrCovMatrix[col][row] /= normXYRatio[1]
-                    parHessErrCovMatrix[col][row] = math.sqrt(parHessErrCovMatrix[col][row])
                 parXErr, parYErr, parErrCovMatrix = parXHessErr, parYHessErr, parHessErrCovMatrix
         if verbosity >= 1:
             print("Parameter results:")
