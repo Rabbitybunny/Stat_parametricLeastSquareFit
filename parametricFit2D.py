@@ -522,8 +522,8 @@ def _parametricFit2D_paraRangePlot(localOpt_tList, paraRange, dataN, verbosity=1
         ax[-1].ticklabel_format(style="sci", scilimits=(-2, 2), axis="both")
     fig.subplots_adjust(top=0.9, bottom=0.1, left=0.1, right=0.97)
     
-    leftPlot  = ax[0].plot(paraX, paraLeftHist,  linewidth=2, color="blue", drawstyle="steps-mid")[0]
-    rightPlot = ax[0].plot(paraX, paraRightHist, linewidth=2, color="red",  drawstyle="steps-mid")[0]
+    leftPlot  = ax[0].plot(paraX, paraLeftHist,  linewidth=2, color="blue", drawstyle="steps-post")[0]
+    rightPlot = ax[0].plot(paraX, paraRightHist, linewidth=2, color="red",  drawstyle="steps-post")[0]
     ax[0].axhline(y=0, linewidth=2, color="black")
     plotTitle = "Local Minima Degeneracies within Parametric Ranges, "
     plotTitle+= str(len(localOpt_tList)) + "/" + str(dataN)
